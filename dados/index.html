@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>​</title>
+<title>Dados Alta CRIA 25-26</title>
 <meta name="description" content="Os dados do Programa Alta CRIA, capítulo a capítulo. Consulta aberta à comunidade.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Dados Alta CRIA 2025/2026">
@@ -121,10 +121,6 @@
   .exportar svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .mais{display:inline-flex;align-items:center;gap:5px;border:1px solid #D6E1EB;border-radius:7px;background:#F7FAFC;padding:6px 9px;margin-top:10px}
   .mais:hover{background:#EAF1F7;text-decoration:none}
-  @media (min-width:700px){
-    .grade{grid-auto-rows:8px;grid-auto-flow:row dense;align-items:start}
-    .cartao{grid-row-end:span 1}
-  }
   @media (max-width:640px){.topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}.trilha{padding-top:13px}.fase{min-width:90px;padding-right:12px}.fase .et{font-size:15px}}
 </style>
 </head>
@@ -213,7 +209,11 @@ function prepararPergunta(q) {
 }
 function prepararDados(dados) {
   if (!dados || !Array.isArray(dados.capitulos)) return dados;
-  dados.capitulos.forEach(c => { c.titulo = chave(c.titulo) === 'informacoes gerais e caracterizacao da fazenda' ? 'Informações gerais e caracterização das fazendas' : c.titulo; c.perguntas = (c.perguntas || []).filter(q => !deveOcultar(q)).map(prepararPergunta); });
+  dados.capitulos.forEach(c => {
+    c.titulo = chave(c.titulo) === 'informacoes gerais e caracterizacao da fazenda' ? 'Informações gerais e caracterização das fazendas' : c.titulo;
+    c.perguntas = (c.perguntas || []).filter(q => !deveOcultar(q)).map(prepararPergunta);
+    c.perguntas.forEach(q => q.nExibicao = Number(dados.n_fazendas) || Number(q.n) || 0);
+  });
   return dados;
 }
 
@@ -335,37 +335,15 @@ function render() {
     box.querySelectorAll('.b').forEach((x, i) => { if (i >= 5) x.hidden = expandido; });
     b.setAttribute('aria-expanded', String(!expandido));
     b.textContent = expandido ? b.dataset.abrir : 'Ocultar demais';
-    requestAnimationFrame(organizarGrade);
   }));
   $('grade').querySelectorAll('.exportar').forEach(b => b.addEventListener('click', () => exportarCartao(b.closest('.cartao'))));
-  requestAnimationFrame(() => {
-    $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%');
-    organizarGrade();
-  });
+  requestAnimationFrame(() => $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%'));
 }
-
-function organizarGrade() {
-  const grade = $('grade');
-  if (!grade) return;
-  const colunas = getComputedStyle(grade).gridTemplateColumns.split(' ').length;
-  if (colunas < 2) {
-    grade.querySelectorAll('.cartao').forEach(card => card.style.gridRowEnd = '');
-    return;
-  }
-  const estilo = getComputedStyle(grade);
-  const alturaLinha = parseFloat(estilo.gridAutoRows) || 8;
-  const espaco = parseFloat(estilo.rowGap) || 16;
-  grade.querySelectorAll('.cartao').forEach(card => {
-    const linhas = Math.ceil((card.getBoundingClientRect().height + espaco) / (alturaLinha + espaco));
-    card.style.gridRowEnd = 'span ' + Math.max(1, linhas);
-  });
-}
-let ajusteGrade;
-window.addEventListener('resize', () => { clearTimeout(ajusteGrade); ajusteGrade = setTimeout(organizarGrade, 100); });
 
 function cartao(q) {
+  const nExibicao = Number(q.nExibicao ?? q.n) || 0;
   const topo = `<div class="cartao-cabeca"><h3>${esc(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
-    <div class="n num">${nf(q.n)} ${q.n === 1 ? 'fazenda respondeu' : 'fazendas responderam'}</div>`;
+    <div class="n num">${nf(nExibicao)} ${nExibicao === 1 ? 'fazenda respondeu' : 'fazendas responderam'}</div>`;
   return `<article class="cartao">${topo}${q.tipo === 'numerico' || q.tipo === 'escala' ? corpoNum(q) : corpoCat(q)}</article>`;
 }
 
