@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dados Alta CRIA 2025/2026</title>
+<title>​</title>
 <meta name="description" content="Os dados do Programa Alta CRIA, capítulo a capítulo. Consulta aberta à comunidade.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Dados Alta CRIA 2025/2026">
@@ -121,6 +121,10 @@
   .exportar svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .mais{display:inline-flex;align-items:center;gap:5px;border:1px solid #D6E1EB;border-radius:7px;background:#F7FAFC;padding:6px 9px;margin-top:10px}
   .mais:hover{background:#EAF1F7;text-decoration:none}
+  @media (min-width:700px){
+    .grade{grid-auto-rows:8px;grid-auto-flow:row dense;align-items:start}
+    .cartao{grid-row-end:span 1}
+  }
   @media (max-width:640px){.topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}.trilha{padding-top:13px}.fase{min-width:90px;padding-right:12px}.fase .et{font-size:15px}}
 </style>
 </head>
@@ -161,7 +165,7 @@
 </footer>
 
 <script id="legacy-script">
-const FASES = {"1": ["A fazenda", "contexto"], "2": ["Pré-parto", "antes de nascer"], "3": ["Maternidade", "o parto"], "4": ["Colostragem", "primeiras horas"], "5": ["Nutrição", "até o desaleitamento"], "6": ["Sanidade", "doença e morte"], "7": ["Ambiente", "onde vive"], "8": ["Recria", "até a novilha"], "9": ["Custos", "o que custa"], "10": ["O programa", "devolutiva"]};
+const FASES = {"1": ["Fazendas", "contexto"], "2": ["Pré-parto", "antes de nascer"], "3": ["Maternidade", "o parto"], "4": ["Colostragem", "primeiras horas"], "5": ["Nutrição", "até o desaleitamento"], "6": ["Sanidade", "doença e morte"], "7": ["Ambiente", "onde vive"], "8": ["Recria", "até a novilha"], "9": ["Custos", "o que custa"], "10": ["O programa", "devolutiva"]};
 let DADOS = null, capAtual = 0, termo = '';
 let DADOS_AO_VIVO = false;
 const API_DADOS = 'https://script.google.com/macros/s/AKfycbw1zIn_bEKJnIRQhOoAmt5iOxoDVYw4NZtxAlDxIaN8Y5yvXAH1wwC8Cq9Vwj5FCqYvtg/exec?api=dados_publicos';
@@ -192,6 +196,7 @@ function rotuloPadrao(q, rotulo) {
     ? original.toLocaleLowerCase('pt-BR').replace(/^./, letra => letra.toLocaleUpperCase('pt-BR')) : original;
 }
 function denominadorReal(q) {
+  if (Number(q.n) > 0) return Number(q.n);
   if (!Array.isArray(q.opcoes)) return Number(q.n) || 0;
   const estimativas = q.opcoes.map(o => { const n = Number(o.n), pct = Number(o.pct); return n > 0 && pct > 0 ? n * 100 / pct : 0; }).filter(Number.isFinite).sort((a,b) => a-b);
   return estimativas.length ? Math.max(1, Math.round(estimativas[Math.floor(estimativas.length / 2)])) : Number(q.n) || 0;
@@ -330,10 +335,33 @@ function render() {
     box.querySelectorAll('.b').forEach((x, i) => { if (i >= 5) x.hidden = expandido; });
     b.setAttribute('aria-expanded', String(!expandido));
     b.textContent = expandido ? b.dataset.abrir : 'Ocultar demais';
+    requestAnimationFrame(organizarGrade);
   }));
   $('grade').querySelectorAll('.exportar').forEach(b => b.addEventListener('click', () => exportarCartao(b.closest('.cartao'))));
-  requestAnimationFrame(() => $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%'));
+  requestAnimationFrame(() => {
+    $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%');
+    organizarGrade();
+  });
 }
+
+function organizarGrade() {
+  const grade = $('grade');
+  if (!grade) return;
+  const colunas = getComputedStyle(grade).gridTemplateColumns.split(' ').length;
+  if (colunas < 2) {
+    grade.querySelectorAll('.cartao').forEach(card => card.style.gridRowEnd = '');
+    return;
+  }
+  const estilo = getComputedStyle(grade);
+  const alturaLinha = parseFloat(estilo.gridAutoRows) || 8;
+  const espaco = parseFloat(estilo.rowGap) || 16;
+  grade.querySelectorAll('.cartao').forEach(card => {
+    const linhas = Math.ceil((card.getBoundingClientRect().height + espaco) / (alturaLinha + espaco));
+    card.style.gridRowEnd = 'span ' + Math.max(1, linhas);
+  });
+}
+let ajusteGrade;
+window.addEventListener('resize', () => { clearTimeout(ajusteGrade); ajusteGrade = setTimeout(organizarGrade, 100); });
 
 function cartao(q) {
   const topo = `<div class="cartao-cabeca"><h3>${esc(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
