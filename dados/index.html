@@ -123,6 +123,8 @@
   .mais:hover{background:#EAF1F7;text-decoration:none}
   @media (max-width:640px){.topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}.trilha{padding-top:13px}.fase{min-width:90px;padding-right:12px}.fase .et{font-size:15px}}
 </style>
+<!-- Ícone transparente: evita que a marca Alta apareça na aba do navegador. -->
+<link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E">
 </head>
 <body>
 
@@ -165,9 +167,29 @@ const FASES = {"1": ["Fazendas", "contexto"], "2": ["Pré-parto", "antes de nasc
 let DADOS = null, capAtual = 0, termo = '';
 let DADOS_AO_VIVO = false;
 const API_DADOS = 'https://script.google.com/macros/s/AKfycbw1zIn_bEKJnIRQhOoAmt5iOxoDVYw4NZtxAlDxIaN8Y5yvXAH1wwC8Cq9Vwj5FCqYvtg/exec?api=dados_publicos';
+// A prévia do ChatGPT bloqueia conexões externas e exibe um pedido de
+// permissão. A API ao vivo só é consultada no endereço público do GitHub.
+const PODE_CONSULTAR_API = location.hostname === 'altaleite.github.io';
 const $ = id => document.getElementById(id);
 const nf = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const pct = n => Math.round(Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const PERGUNTAS_INTEIRAS = new Set(['q025', 'q026', 'q031', 'q033', 'q034']);
+function numeroPergunta(q, valor) {
+  if (!PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return nf(valor);
+  return Math.round(Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+}
+function faixaPergunta(q, faixa) {
+  if (!PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return String(faixa || '');
+  return String(faixa || '').replace(/-?\d+(?:[.,]\d+)?/g, valor =>
+    Math.round(Number(valor.replace(',', '.')) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+  );
+}
+function textoFormatado(valor) {
+  return esc(valor)
+    .replace(/free stall/gi, '<i>Free stall</i>')
+    .replace(/compost barn/gi, '<i>Compost barn</i>');
+}
 
 const iconeExportar = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14a1 1 0 0 0 1-1v-4M4 16v4a1 1 0 0 0 1 1"/></svg>';
 const removerAcentos = valor => String(valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -175,7 +197,13 @@ const chave = valor => removerAcentos(valor).toLowerCase().replace(/[^a-z0-9]+/g
 const ESTADOS = {
   ac:'Acre', acre:'Acre', al:'Alagoas', alagoas:'Alagoas', ap:'Amapá', amapa:'Amapá', am:'Amazonas', amazonas:'Amazonas', ba:'Bahia', bahia:'Bahia', ce:'Ceará', ceara:'Ceará', df:'Distrito Federal', distritofederal:'Distrito Federal', es:'Espírito Santo', espiritosanto:'Espírito Santo', go:'Goiás', goias:'Goiás', ma:'Maranhão', maranhao:'Maranhão', mt:'Mato Grosso', matogrosso:'Mato Grosso', ms:'Mato Grosso do Sul', matogrossodosul:'Mato Grosso do Sul', mg:'Minas Gerais', minasgerais:'Minas Gerais', pa:'Pará', para:'Pará', pb:'Paraíba', paraiba:'Paraíba', pr:'Paraná', parana:'Paraná', pe:'Pernambuco', pernambuco:'Pernambuco', pi:'Piauí', piaui:'Piauí', rj:'Rio de Janeiro', riodejaneiro:'Rio de Janeiro', rn:'Rio Grande do Norte', riograndedonorte:'Rio Grande do Norte', rs:'Rio Grande do Sul', riograndedosul:'Rio Grande do Sul', ro:'Rondônia', rondonia:'Rondônia', rr:'Roraima', roraima:'Roraima', sc:'Santa Catarina', santacatarina:'Santa Catarina', sp:'São Paulo', saopaulo:'São Paulo', se:'Sergipe', sergipe:'Sergipe', to:'Tocantins', tocantins:'Tocantins'
 };
-function tituloPergunta(q) { const t = String(q.titulo || '').trim(); return chave(t) === 'informacoes gerais e caracterizacao da fazenda' ? 'Informações gerais e caracterização das fazendas' : t; }
+function tituloPergunta(q) {
+  const t = String(q.titulo || '').trim(), id = idPergunta(q);
+  if (id.includes('q046') || chave(t) === 'voce utiliza sais anionicos na dieta das novilhas no pre parto') {
+    return 'Utilização de sais aniônicos na dieta das novilhas no pré-parto?';
+  }
+  return chave(t) === 'informacoes gerais e caracterizacao da fazenda' ? 'Informações gerais e caracterização das fazendas' : t;
+}
 function deveOcultar(q) { return chave(q.titulo).includes('modo de envio de dados para o programa alta cria'); }
 function idPergunta(q) { return chave(q.id || q.codigo || q.campo || q.num); }
 function respostaOutro(q) {
@@ -184,12 +212,79 @@ function respostaOutro(q) {
   return itens.map(item => ({ rotulo: String(item.rotulo || item.label || item.resposta || item.valor || '').trim(), n: Number(item.n || item.quantidade || item.count || 1) })).filter(item => item.rotulo);
 }
 function rotuloPadrao(q, rotulo) {
-  const original = String(rotulo || '').replace(/\s+/g, ' ').trim(), k = chave(original);
+  let original = String(rotulo || '').replace(/\s+/g, ' ').trim();
+  const identificador = idPergunta(q);
+  if (identificador.includes('q039') || identificador.includes('q040')) {
+    original = original.replace(/\d+(?:[.,]\d+)?/g, valor =>
+      Number(valor.replace(',', '.')).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    );
+  }
+  const k = chave(original);
   if (chave(q.titulo).includes('estado') && ESTADOS[k]) return ESTADOS[k];
   if (['sim', 'yes'].includes(k)) return 'Sim'; if (['nao', 'no'].includes(k)) return 'Não'; if (['na', 'n a', 'nao se aplica'].includes(k)) return 'Não se aplica';
   if (!original) return 'Sem informação';
+  if (identificador.includes('q044')) return original;
   return original === original.toLocaleUpperCase('pt-BR') || original === original.toLocaleLowerCase('pt-BR')
     ? original.toLocaleLowerCase('pt-BR').replace(/^./, letra => letra.toLocaleUpperCase('pt-BR')) : original;
+}
+
+const ORDEM_RESPOSTAS = {
+  q038: ['30 dias ou menos', '45 dias', '60 dias ou mais'],
+  q039: ['< 2,50', '2,50 a 2,75', '3,00', '3,25 a 3,50', '3,75', '> 3,75', 'Não é avaliado'],
+  q040: ['< 2,50', '2,50 a 2,75', '3,00', '3,25 a 3,50', '3,75', '> 3,75', 'Não é avaliado'],
+  q041: ['60 dias antes da data prevista do parto', '30 dias antes da data prevista do parto', 'Não são resfriadas com ventilação + aspersão'],
+  q042: ['60 dias antes da data prevista do parto', '30 dias antes da data prevista do parto', 'Não são resfriadas com ventilação + aspersão']
+};
+const NOMES_VACINAS = new Map(Object.entries({
+  'scourguard 4kc': 'ScourGuard® 4KC',
+  'rotatec j5': 'ROTATEC J5®',
+  'j vac': 'J-VAC®',
+  'providean entero plus 7': 'Providean® Entero Plus 7',
+  'rotavec corona': 'ROTAVEC® CORONA',
+  'bovilis poli star t': 'Bovilis® Poli-Star® T',
+  'poli star': 'POLI-STAR®',
+  'topvac': 'TOPVAC®',
+  'bioleptogen': 'BIOLEPTOGEN®',
+  'bioqueratogen oleo': 'BIOQUERATOGEN® ÓLEO',
+  'cattlemaster gold fp 5 l5': 'CattleMaster® GOLD FP® 5/L5',
+  'hiprabovis ibr marker live': 'HIPRABOVIS® IBR MARKER LIVE',
+  'hiprabovis somni lkt': 'HIPRABOVIS® SOMNI/Lkt',
+  'hiprabovis lepto': 'HIPRABOVIS® LEPTO',
+  'morak 5': 'MORAK® 5',
+  'inforce 3': 'INFORCE™ 3',
+  'providean repro 12': 'Providean® Repro 12',
+  'vaxall cd': 'Vaxall® CD',
+  'vacina vac cherry': 'Vac-Cherry® Reprodutiva'
+}));
+const ITENS_NAO_VALIDOS_COMO_VACINA = new Set([
+  'eprecis', // eprinomectina injetável: antiparasitário, não vacina
+  'outra',
+  'outro',
+  'vacina autogena inata', // formulação personalizada, sem bula pública padronizada
+  'vacina autogena microvet'
+]);
+function normalizarVacina(rotulo) {
+  const k = chave(rotulo);
+  return NOMES_VACINAS.get(k) || rotulo;
+}
+function vacinaValidaParaLista(rotulo) {
+  return !ITENS_NAO_VALIDOS_COMO_VACINA.has(chave(rotulo));
+}
+function ordenarRespostas(q, opcoes) {
+  const id = idPergunta(q).match(/q\d{3}/)?.[0] || '';
+  const ordem = ORDEM_RESPOSTAS[id];
+  const posicoes = ordem ? new Map(ordem.map((rotulo, i) => [chave(rotulo), i])) : null;
+  return [...opcoes].sort((a, b) => {
+    if (posicoes) {
+      const pa = posicoes.has(chave(a.rotulo)) ? posicoes.get(chave(a.rotulo)) : ordem.length;
+      const pb = posicoes.has(chave(b.rotulo)) ? posicoes.get(chave(b.rotulo)) : ordem.length;
+      if (pa !== pb) return pa - pb;
+    }
+    const aNegativa = /^(nao|nenhum|nunca|sem |nao e avaliado)/.test(chave(a.rotulo));
+    const bNegativa = /^(nao|nenhum|nunca|sem |nao e avaliado)/.test(chave(b.rotulo));
+    if (aNegativa !== bNegativa) return aNegativa ? 1 : -1;
+    return b.n - a.n || a.rotulo.localeCompare(b.rotulo, 'pt-BR');
+  });
 }
 function denominadorReal(q) {
   if (Number(q.n) > 0) return Number(q.n);
@@ -203,8 +298,20 @@ function prepararPergunta(q) {
   if (!Array.isArray(q.opcoes)) return q;
   const outros = respostaOutro(q), identificador = idPergunta(q), substituirOutro = identificador.includes('q029') || identificador.includes('q030') || chave(q.titulo).includes('raca predominante') || chave(q.titulo).includes('principal software'), acumulado = new Map();
   function inserir(rotulo, n) { const nome = rotuloPadrao(q, rotulo), k = chave(nome), atual = acumulado.get(k) || { rotulo: nome, n: 0 }; atual.n += n; acumulado.set(k, atual); }
-  q.opcoes.forEach(opcao => { const pendente = chave(opcao.rotulo).includes('outro aguardando classificacao'); if (pendente && substituirOutro && outros.length) outros.forEach(item => inserir(item.rotulo, item.n)); else inserir(opcao.rotulo, Number(opcao.n) || 0); });
-  q.opcoes = [...acumulado.values()].sort((a,b) => b.n - a.n || a.rotulo.localeCompare(b.rotulo, 'pt-BR')).map(o => ({ ...o, pct: denominador ? o.n * 100 / denominador : 0 }));
+  q.opcoes.forEach(opcao => {
+    const pendente = chave(opcao.rotulo).includes('outro aguardando classificacao');
+    if (pendente && substituirOutro && outros.length) {
+      outros.forEach(item => inserir(item.rotulo, item.n));
+      return;
+    }
+    if (identificador.includes('q044')) {
+      if (!vacinaValidaParaLista(opcao.rotulo)) return;
+      inserir(normalizarVacina(opcao.rotulo), Number(opcao.n) || 0);
+      return;
+    }
+    inserir(opcao.rotulo, Number(opcao.n) || 0);
+  });
+  q.opcoes = ordenarRespostas(q, [...acumulado.values()]).map(o => ({ ...o, pct: denominador ? o.n * 100 / denominador : 0 }));
   return q;
 }
 function prepararDados(dados) {
@@ -221,6 +328,10 @@ function prepararDados(dados) {
 
 function lerDadosAoVivo() {
   return new Promise((resolve, reject) => {
+    if (!PODE_CONSULTAR_API) {
+      reject(new Error('API externa desativada nesta prévia'));
+      return;
+    }
     const nomeCallback = `altaCriaDados_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement('script');
     let finalizado = false;
@@ -261,14 +372,16 @@ carregarDados()
     $('vazio').innerHTML = '<b>Os dados ainda não foram publicados.</b><br>Assim que as fazendas responderem, os resultados aparecem aqui.';
   });
 
-setInterval(() => {
-  lerDadosAoVivo().then(d => {
-    if (!d || !Array.isArray(d.capitulos)) return;
-    DADOS = prepararDados(d);
-    DADOS_AO_VIVO = true;
-    iniciar();
-  }).catch(() => {});
-}, 5 * 60 * 1000);
+if (PODE_CONSULTAR_API) {
+  setInterval(() => {
+    lerDadosAoVivo().then(d => {
+      if (!d || !Array.isArray(d.capitulos)) return;
+      DADOS = prepararDados(d);
+      DADOS_AO_VIVO = true;
+      iniciar();
+    }).catch(() => {});
+  }, 5 * 60 * 1000);
+}
 
 function iniciar() {
   if (DADOS_AO_VIVO) {
@@ -344,7 +457,7 @@ function render() {
 
 function cartao(q) {
   const nExibicao = Number(q.nExibicao ?? q.n) || 0;
-  const topo = `<div class="cartao-cabeca"><h3>${esc(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
+  const topo = `<div class="cartao-cabeca"><h3>${textoFormatado(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
     <div class="n num">${nf(nExibicao)} ${nExibicao === 1 ? 'fazenda respondeu' : 'fazendas responderam'}</div>`;
   return `<article class="cartao">${topo}${q.tipo === 'numerico' || q.tipo === 'escala' ? corpoNum(q) : corpoCat(q)}</article>`;
 }
@@ -354,8 +467,8 @@ function corpoCat(q) {
   const LIM = 5, max = Math.max(...q.opcoes.map(o => o.pct));
   const barras = q.opcoes.map((o, i) => `
     <div class="b"${i >= LIM ? ' hidden' : ''}>
-      <div class="b-topo"><span class="b-rot">${esc(o.rotulo)}</span>
-        <span class="b-val"><b>${nf(o.pct)}%</b> · ${nf(o.n)}</span></div>
+      <div class="b-topo"><span class="b-rot">${textoFormatado(o.rotulo)}</span>
+        <span class="b-val"><b>${pct(o.pct)}%</b> · ${nf(o.n)}</span></div>
       <div class="trilho"><div class="barra" data-w="${max ? (o.pct / max * 100).toFixed(1) : 0}" style="width:0"></div></div>
     </div>`).join('');
   const extra = q.opcoes.length > LIM ? `<button class="mais" aria-expanded="false" data-abrir="Ver as outras ${q.opcoes.length - LIM}">Ver as outras ${q.opcoes.length - LIM}</button>` : '';
@@ -365,29 +478,38 @@ function corpoCat(q) {
 function corpoNum(q) {
   if (!q.n) return '<p class="n">Sem respostas.</p>';
   const resumo = `<div class="faixas">
-      <div class="fx"><span class="r">25%</span><span class="v num">${nf(q.p25)}</span></div>
-      <div class="fx dest"><span class="r">Mediana</span><span class="v num">${nf(q.mediana)}</span></div>
-      <div class="fx"><span class="r">75%</span><span class="v num">${nf(q.p75)}</span></div>
-      <div class="fx"><span class="r">Média</span><span class="v num">${nf(q.media)}</span></div>
+      <div class="fx"><span class="r">25%</span><span class="v num">${numeroPergunta(q, q.p25)}</span></div>
+      <div class="fx dest"><span class="r">Mediana</span><span class="v num">${numeroPergunta(q, q.mediana)}</span></div>
+      <div class="fx"><span class="r">75%</span><span class="v num">${numeroPergunta(q, q.p75)}</span></div>
+      <div class="fx"><span class="r">Média</span><span class="v num">${numeroPergunta(q, q.media)}</span></div>
     </div>`;
   if (!q.hist || !q.hist.length) return resumo;
   const max = Math.max(...q.hist.map(h => h.n)) || 1;
   const barras = q.hist.map(h => `<div class="hb" style="height:${Math.max(2, h.n / max * 100)}%">
-      <span>${esc(h.faixa)}: ${nf(h.n)} ${h.n === 1 ? 'fazenda' : 'fazendas'}</span></div>`).join('');
+      <span>${esc(faixaPergunta(q, h.faixa))}: ${nf(h.n)} ${h.n === 1 ? 'fazenda' : 'fazendas'}</span></div>`).join('');
   return `${resumo}<div class="hist">${barras}</div>
-    <div class="heixo"><span>${esc(q.hist[0].faixa)}</span><span>${esc(q.hist[q.hist.length - 1].faixa)}</span></div>`;
+    <div class="heixo"><span>${esc(faixaPergunta(q, q.hist[0].faixa))}</span><span>${esc(faixaPergunta(q, q.hist[q.hist.length - 1].faixa))}</span></div>`;
 }
 
 function exportarCartao(cartao) {
   const clone = cartao.cloneNode(true);
   clone.querySelectorAll('.exportar,.mais').forEach(el => el.remove());
+  clone.querySelectorAll('.b').forEach(el => { el.hidden = false; });
   clone.style.cssText = 'width:760px;max-width:none;margin:0;border:1px solid #DDE4EB;border-radius:13px;padding:22px;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#16222E;box-sizing:border-box;';
   const css = `*{box-sizing:border-box}.cartao-cabeca{display:flex;align-items:flex-start;margin-bottom:2px}.cartao h3{margin:0;font-size:21px;line-height:1.32;color:#0E2E4D;font-weight:700}.cartao .n{font-size:15px;color:#5B6B7A;margin:4px 0 16px}.b{margin-bottom:13px}.b-topo{display:flex;justify-content:space-between;gap:14px;font-size:16px;margin-bottom:5px}.b-val{color:#5B6B7A;white-space:nowrap}.b-val b{color:#0E2E4D}.trilho{height:11px;background:#EDF1F5;border-radius:6px;overflow:hidden}.barra{height:100%!important;background:#F9B000;border-radius:6px}.b:nth-child(n+2) .barra{background:#F5C453}.b:nth-child(n+5) .barra{background:#9FB6CC}.faixas{display:flex;gap:18px;padding:10px 0 15px;border-bottom:1px solid #DDE4EB;margin-bottom:14px}.fx{flex:1}.fx .r{display:block;font-size:12px;color:#5B6B7A;text-transform:uppercase}.fx .v{display:block;font-size:27px;font-weight:700;color:#0E2E4D}.fx.dest .v{color:#C98D00}.hist{display:flex;align-items:flex-end;gap:4px;height:110px}.hb{flex:1;background:#DCE6EF;border-radius:3px 3px 0 0;min-height:2px}.hb span{display:none}.heixo{display:flex;justify-content:space-between;font-size:12px;color:#5B6B7A;margin-top:6px}`;
-  const conteudo = `<div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style><div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#C98D00;margin-bottom:10px">DADOS ALTA CRIA 2025/2026</div>${clone.outerHTML}</div>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${Math.max(300, Math.ceil(cartao.getBoundingClientRect().height + 80))}"><foreignObject width="100%" height="100%">${conteudo}</foreignObject></svg>`;
+  const medidor = document.createElement('div');
+  medidor.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;visibility:hidden;pointer-events:none;';
+  medidor.innerHTML = `<style>${css}</style>`;
+  medidor.appendChild(clone);
+  document.body.appendChild(medidor);
+  const alturaExportacao = Math.max(300, Math.ceil(clone.scrollHeight + 80));
+  const htmlClone = clone.outerHTML;
+  medidor.remove();
+  const conteudo = `<div xmlns="http://www.w3.org/1999/xhtml"><style>${css}</style><div style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#C98D00;margin-bottom:10px">DADOS ALTA CRIA 2025/2026</div>${htmlClone}</div>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${alturaExportacao}"><foreignObject width="100%" height="100%">${conteudo}</foreignObject></svg>`;
   const imagem = new Image();
   imagem.onload = () => {
-    const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = Math.max(600, Math.ceil((cartao.getBoundingClientRect().height + 80) * 2));
+    const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = alturaExportacao * 2;
     const contexto = canvas.getContext('2d'); contexto.scale(2, 2); contexto.fillStyle = '#FFFFFF'; contexto.fillRect(0, 0, 800, canvas.height / 2); contexto.drawImage(imagem, 0, 0);
     const link = document.createElement('a'); link.download = `${cartao.querySelector('h3').textContent.trim().replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'resposta'}-alta-cria.png`; link.href = canvas.toDataURL('image/png'); link.click();
   };
