@@ -121,13 +121,53 @@
   .exportar svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .mais{display:inline-flex;align-items:center;gap:5px;border:1px solid #D6E1EB;border-radius:7px;background:#F7FAFC;padding:6px 9px;margin-top:10px}
   .mais:hover{background:#EAF1F7;text-decoration:none}
+  [hidden]{display:none!important}
+  .pagina-inicial{min-height:100vh;background:linear-gradient(145deg,#071A2C 0%,#0E2E4D 52%,#174A77 100%);color:#fff;padding:clamp(28px,6vw,76px) 22px;position:relative;overflow:hidden}
+  .pagina-inicial::before{content:"";position:absolute;inset:auto -12vw -35vw auto;width:70vw;height:70vw;border-radius:50%;background:radial-gradient(circle,rgba(249,176,0,.18),rgba(249,176,0,0) 68%);pointer-events:none}
+  .inicio-conteudo{width:min(1120px,100%);margin:0 auto;position:relative;z-index:1}
+  .inicio-marca{display:inline-flex;align-items:center;gap:10px;color:var(--am);font-family:var(--display);font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:14px}
+  .inicio-marca::before{content:"";width:34px;height:3px;border-radius:3px;background:var(--am)}
+  .inicio-hero{max-width:790px;padding:clamp(54px,9vw,105px) 0 58px}
+  .inicio-hero h1{font-family:var(--display);font-size:clamp(48px,8vw,88px);line-height:.95;letter-spacing:-.02em;margin:0 0 24px}
+  .inicio-hero h1 span{display:block;color:var(--am)}
+  .inicio-hero p{max-width:650px;margin:0 0 30px;color:#C9D9E7;font-size:clamp(18px,2vw,22px);line-height:1.55}
+  .inicio-acoes{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .abrir-dados{border:0;border-radius:10px;background:var(--am);color:var(--navy);padding:13px 20px;font:700 16px var(--corpo);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:transform .18s,background .18s}
+  .abrir-dados:hover{transform:translateY(-2px);background:#FFC22D}
+  .abrir-dados:disabled{opacity:.55;cursor:wait;transform:none}
+  .abrir-dados:focus-visible,.inicio-capitulo:focus-visible{outline:3px solid #fff;outline-offset:3px}
+  .resumo-inicio{color:#AFC4D8;font-size:14px}
+  .inicio-capitulos{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding-bottom:20px}
+  .inicio-capitulo{min-height:92px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.07);color:#fff;padding:14px;text-align:left;font-family:var(--corpo);cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+  .inicio-capitulo:hover{background:rgba(255,255,255,.13);border-color:rgba(249,176,0,.7);transform:translateY(-2px)}
+  .inicio-capitulo-num{display:block;color:var(--am);font:700 12px var(--display);letter-spacing:.1em;margin-bottom:7px}
+  .inicio-capitulo-titulo{display:block;font-weight:700;font-size:16px;line-height:1.2}
+  .inicio-capitulo-sub{display:block;color:#9FB6CC;font-size:12px;margin-top:2px}
   @media (max-width:640px){.topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}.trilha{padding-top:13px}.fase{min-width:90px;padding-right:12px}.fase .et{font-size:15px}}
+  @media (max-width:900px){.inicio-capitulos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:520px){.pagina-inicial{padding-left:18px;padding-right:18px}.inicio-hero{padding-top:52px}.inicio-capitulos{grid-template-columns:1fr}.inicio-capitulo{min-height:78px}}
 </style>
 <!-- Ícone transparente: evita que a marca Alta apareça na aba do navegador. -->
 <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E">
 </head>
 <body>
 
+<section class="pagina-inicial" id="paginaInicial" aria-labelledby="tituloInicio">
+  <div class="inicio-conteudo">
+    <div class="inicio-marca">Programa Alta CRIA</div>
+    <div class="inicio-hero">
+      <h1 id="tituloInicio">Dados Alta CRIA <span>2025/2026</span></h1>
+      <p>Conheça, capítulo a capítulo, os dados agregados das fazendas participantes do Programa Alta CRIA.</p>
+      <div class="inicio-acoes">
+        <button class="abrir-dados" id="abrirDados" type="button" disabled>Explorar os dados</button>
+        <span class="resumo-inicio" id="resumoInicio">Carregando resultados...</span>
+      </div>
+    </div>
+    <nav class="inicio-capitulos" id="capitulosInicio" aria-label="Capítulos dos dados"></nav>
+  </div>
+</section>
+
+<div id="painelDados" hidden>
 <div id="demo" class="aviso-demo" hidden></div>
 
 <header class="topo">
@@ -161,6 +201,7 @@
   <p>Programa Alta CRIA · Alta Genetics Brasil<br>
   Dados agregados das fazendas participantes. Nenhuma fazenda é identificada.</p>
 </footer>
+</div>
 
 <script id="legacy-script">
 const FASES = {"1": ["Fazendas", "contexto"], "2": ["Pré-parto", "antes de nascer"], "3": ["Maternidade", "o parto"], "4": ["Colostragem", "primeiras horas"], "5": ["Nutrição", "até o desaleitamento"], "6": ["Sanidade", "doença e morte"], "7": ["Ambiente", "onde vive"], "8": ["Recria", "até a novilha"], "9": ["Custos", "o que custa"], "10": ["O programa", "devolutiva"]};
@@ -254,14 +295,14 @@ const NOMES_VACINAS = new Map(Object.entries({
   'inforce 3': 'INFORCE™ 3',
   'providean repro 12': 'Providean® Repro 12',
   'vaxall cd': 'Vaxall® CD',
-  'vacina vac cherry': 'Vac-Cherry® Reprodutiva'
+  'vacina vac cherry': 'Vac-Cherry® Reprodutiva',
+  'vacina autogena inata': 'Vacina autógena Inata',
+  'vacina autogena microvet': 'Vacina autógena – Microvet'
 }));
 const ITENS_NAO_VALIDOS_COMO_VACINA = new Set([
   'eprecis', // eprinomectina injetável: antiparasitário, não vacina
   'outra',
-  'outro',
-  'vacina autogena inata', // formulação personalizada, sem bula pública padronizada
-  'vacina autogena microvet'
+  'outro'
 ]);
 function normalizarVacina(rotulo) {
   const k = chave(rotulo);
@@ -394,11 +435,42 @@ function iniciar() {
   const dt = new Date(DADOS.gerado_em);
   $('quando').textContent = isNaN(dt) ? '' : 'atualizado em ' + dt.toLocaleDateString('pt-BR');
   if (!DADOS.capitulos || !DADOS.capitulos.length) {
+    $('resumoInicio').textContent = 'Ainda não há respostas suficientes.';
     $('vazio').hidden = false;
     $('vazio').innerHTML = '<b>Ainda não há respostas suficientes.</b>';
     return;
   }
-  montarTrilha(); render();
+  montarInicio(); montarTrilha(); render();
+}
+
+function montarInicio() {
+  $('resumoInicio').textContent = `${nf(DADOS.n_fazendas)} fazendas participantes · atualizado em ${$('quando').textContent.replace('atualizado em ', '')}`;
+  $('abrirDados').disabled = false;
+  $('capitulosInicio').innerHTML = DADOS.capitulos.map((c, i) => {
+    const f = FASES[c.idx] || [c.titulo, ''];
+    return `<button class="inicio-capitulo" type="button" data-i="${i}">
+      <span class="inicio-capitulo-num">CAPÍTULO ${String(i + 1).padStart(2, '0')}</span>
+      <span class="inicio-capitulo-titulo">${esc(f[0])}</span>
+      <span class="inicio-capitulo-sub">${esc(f[1])}</span>
+    </button>`;
+  }).join('');
+  $('capitulosInicio').querySelectorAll('.inicio-capitulo').forEach(b => b.addEventListener('click', () => mostrarPainel(+b.dataset.i)));
+}
+
+function mostrarPainel(indice = 0) {
+  capAtual = Math.max(0, Math.min(indice, DADOS.capitulos.length - 1));
+  termo = '';
+  $('busca').value = '';
+  $('paginaInicial').hidden = true;
+  $('painelDados').hidden = false;
+  render();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+function mostrarInicio() {
+  $('painelDados').hidden = true;
+  $('paginaInicial').hidden = false;
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 function montarTrilha() {
@@ -413,11 +485,8 @@ function montarTrilha() {
 }
 
 $('busca').addEventListener('input', e => { termo = e.target.value.trim().toLowerCase(); render(); });
-$('voltarInicio').addEventListener('click', () => {
-  const mesmoSite = document.referrer && new URL(document.referrer).origin === location.origin;
-  if (mesmoSite && history.length > 1) history.back();
-  else location.assign('https://altaleite.github.io/');
-});
+$('abrirDados').addEventListener('click', () => mostrarPainel(0));
+$('voltarInicio').addEventListener('click', mostrarInicio);
 
 function perguntasVisiveis() {
   if (termo) {
