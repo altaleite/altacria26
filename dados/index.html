@@ -26,7 +26,7 @@
 
   /* ---------- topo ---------- */
   .topo{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-bottom:4px solid var(--am);}
-  .topo-in{max-width:1180px;margin:0 auto;padding:22px 22px 0;}
+  .topo-in{max-width:1744px;margin:0 auto;padding:22px 22px 0;}
   .marca{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
   .marca img{height:40px;}
   .marca h1{font-family:var(--display);font-weight:700;font-size:31px;margin:0;letter-spacing:.01em;}
@@ -35,9 +35,9 @@
   .resumo b{display:block;font-family:var(--display);font-size:30px;color:#fff;line-height:1;}
 
   /* ---------- linha do tempo (a ordem é a vida do animal) ---------- */
-  .trilha{display:flex;gap:0;overflow-x:auto;padding:20px 0 0;scrollbar-width:thin;}
-  .fase{flex:0 0 auto;background:none;border:0;cursor:pointer;color:#9FB6CC;font-family:inherit;
-    padding:0 16px 14px;position:relative;text-align:left;min-width:104px;}
+  .trilha{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.75fr) minmax(0,1.12fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,.82fr) minmax(0,1.05fr);gap:0;overflow:visible;padding:20px 0 0;}
+  .fase{width:100%;min-width:0;background:none;border:0;cursor:pointer;color:#9FB6CC;font-family:inherit;
+    padding:0 9px 14px;position:relative;text-align:left;overflow-wrap:anywhere;}
   .fase:first-child{padding-left:0;}
   .fase .marco{display:block;height:3px;background:rgba(255,255,255,.16);margin-bottom:11px;border-radius:2px;transition:background .18s;}
   .fase .et{display:block;font-family:var(--display);font-weight:700;font-size:17px;color:#D6E4F0;letter-spacing:.02em;transition:color .18s;}
@@ -125,7 +125,15 @@
   .filtro-card label{font-weight:600;white-space:nowrap}
   .filtro-card select{min-width:0;flex:1;border:1px solid #C9D7E3;border-radius:7px;background:#fff;color:var(--navy);padding:7px 9px;font:600 12px var(--corpo);cursor:pointer}
   .filtro-card select:focus{outline:2px solid var(--navy3);outline-offset:1px}
-  @media (max-width:640px){.topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}.trilha{padding-top:13px}.fase{min-width:90px;padding-right:12px}.fase .et{font-size:15px}}
+  @media (max-width:1100px){
+    .trilha{grid-template-columns:repeat(5,minmax(0,1fr));row-gap:10px;}
+    .fase:nth-child(6){padding-left:0;}
+  }
+  @media (max-width:640px){
+    .topo-in{padding-top:10px}.marca{flex-wrap:wrap;gap:10px}.marca img{height:32px}.voltar-inicio{order:3;margin-left:0}.resumo{width:auto;text-align:right;margin-left:auto}
+    .trilha{grid-template-columns:repeat(2,minmax(0,1fr));padding-top:13px;row-gap:10px}
+    .fase{padding-right:12px}.fase:nth-child(odd){padding-left:0}.fase:nth-child(6){padding-left:9px}.fase .et{font-size:15px}
+  }
 </style>
 <!-- Ícone transparente: evita que a marca Alta apareça na aba do navegador. -->
 <link rel="icon" type="image/svg+xml" sizes="any" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E">
@@ -179,7 +187,7 @@ const $ = id => document.getElementById(id);
 const nf = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const pct = n => Math.round(Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-const PERGUNTAS_INTEIRAS = new Set(['q025', 'q026', 'q031', 'q033', 'q034', 'q051', 'q071']);
+const PERGUNTAS_INTEIRAS = new Set(['q025', 'q026', 'q031', 'q033', 'q034', 'q051', 'q071', 'q092']);
 function numeroPergunta(q, valor) {
   if (!PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return nf(valor);
   return Math.round(Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
@@ -193,7 +201,14 @@ function faixaPergunta(q, faixa) {
 function textoFormatado(valor) {
   return esc(valor)
     .replace(/free stall/gi, '<i>Free stall</i>')
-    .replace(/compost barn/gi, '<i>Compost barn</i>');
+    .replace(/compost barn/gi, '<i>Compost barn</i>')
+    .replace(/cross ventilation/gi, '<i>cross ventilation</i>')
+    .replace(/tie stall/gi, '<i>Tie stall</i>')
+    .replace(/calf-tel/gi, '<i>Calf-tel</i>')
+    .replace(/milk bar/gi, '<i>Milk bar</i>')
+    .replace(/colostro balls/gi, '<i>Colostro Balls</i>')
+    .replace(/zip[\s-]?lock/gi, '<i>Zip Lock</i>')
+    .replace(/ad libitum/gi, '<i>ad libitum</i>');
 }
 
 const iconeExportar = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14a1 1 0 0 0 1-1v-4M4 16v4a1 1 0 0 0 1 1"/></svg>';
@@ -249,6 +264,9 @@ const ORDEM_RESPOSTAS = {
   q058: ['≤ 30 minutos', '1 hora', '2 horas', '3 a 8 horas', '9 a 24 horas', '25 horas até 48 horas'],
   q066: ['1 vez', '2 vezes', '3 vezes', '> 3 vezes'],
   q067: ['1 dia', '2 dias', '3 dias', 'Até cair']
+  ,q078: ['< 10% do peso vivo ao nascimento', '10% do peso vivo ao nascimento', '> 10% do peso vivo ao nascimento', '1 a 1,5 pacotes de colostro em pó', '2 ou mais pacotes de colostro em pó']
+  ,q081: ['< 5% do peso vivo ao nascimento', '5% do peso vivo ao nascimento', '> 5% do peso vivo ao nascimento', '1 a 1,5 pacotes de colostro em pó', '2 ou mais pacotes de colostro em pó']
+  ,q190: ['Colostro de excelente qualidade (≥ 25 de Brix), com 1 fornecimento', 'Colostro de excelente qualidade (≥ 25 de Brix), com 2 fornecimentos', 'Colostro de média qualidade (22 a 24 de Brix), com 1 fornecimento', 'Colostro de média qualidade (22 a 24 de Brix), com 2 fornecimentos', 'Colostro de baixa qualidade (< 22 de Brix), com 1 fornecimento', 'Colostro de baixa qualidade (< 22 de Brix), com 2 fornecimentos', '1 pacote de colostro em pó', '1,5 ou 2 pacotes de colostro em pó', 'Não é feita colostragem']
 };
 const NOMES_VACINAS = new Map(Object.entries({
   'scourguard 4kc': 'ScourGuard® 4KC',
@@ -285,19 +303,59 @@ function normalizarVacina(rotulo) {
 function vacinaValidaParaLista(rotulo) {
   return !ITENS_NAO_VALIDOS_COMO_VACINA.has(chave(rotulo));
 }
+function respostaNegativa(rotulo) {
+  const k = chave(rotulo);
+  return /^(nao\b|nenhum\b|nenhuma\b|nunca\b|sem\b)/.test(k) ||
+    /\bnao (e|sao|foi|foram|possui|possuem|utiliza|utilizam|usa|usam|recebe|recebem|controlado|controlada|registra|tem|temos)\b/.test(k);
+}
+function deveOrdenarLogicamente(q, opcoes) {
+  const titulo = chave(q.titulo);
+  const assuntoOrdenavel = /(tempo|idade|numero|quantidade|brix|frequencia|intervalo|temperatura|percentual|volume|tentativa|quantos|ponto de corte|nota)/.test(titulo);
+  if (!assuntoOrdenavel) return false;
+  const validas = opcoes.filter(o => !respostaNegativa(o.rotulo));
+  const numericas = validas.filter(o => valorLogico(o.rotulo) !== null).length;
+  return numericas >= 2 && numericas >= Math.ceil(validas.length * .5);
+}
+function valorLogico(rotulo) {
+  const texto = removerAcentos(rotulo).toLowerCase().replace(/,/g, '.');
+  if (/\b(imediatamente|ao nascer|no nascimento|desde o nascimento)\b/.test(texto)) return { valor: 0, relacao: -2 };
+  const achado = texto.match(/\d+(?:\.\d+)?/);
+  if (!achado) return null;
+  const numero = Number(achado[0]);
+  const depois = texto.slice(achado.index + achado[0].length);
+  let fator = 1;
+  if (/\bsegundo/.test(depois)) fator = 1 / 60;
+  else if (/\bminuto/.test(depois)) fator = 1;
+  else if (/\bhora/.test(depois) || /^\s*h\b/.test(depois)) fator = 60;
+  else if (/\bdia/.test(depois)) fator = 1440;
+  else if (/\bsemana/.test(depois)) fator = 10080;
+  else if (/\bmes/.test(depois)) fator = 43200;
+  else if (/\bano/.test(depois)) fator = 525600;
+  const antes = texto.slice(0, achado.index);
+  const relacao = /<|≤|ate\s*$|menos de\s*$/.test(antes) ? -1 :
+    (/>|≥|mais de\s*$/.test(antes) || /\bou mais\b/.test(depois) ? 1 : 0);
+  return { valor: numero * fator, relacao };
+}
 function ordenarRespostas(q, opcoes) {
   const id = idPergunta(q).match(/q\d{3}/)?.[0] || '';
   const ordem = ORDEM_RESPOSTAS[id];
   const posicoes = ordem ? new Map(ordem.map((rotulo, i) => [chave(rotulo), i])) : null;
+  const ordemLogica = deveOrdenarLogicamente(q, opcoes);
   return [...opcoes].sort((a, b) => {
+    const aNegativa = respostaNegativa(a.rotulo);
+    const bNegativa = respostaNegativa(b.rotulo);
+    if (aNegativa !== bNegativa) return aNegativa ? 1 : -1;
     if (posicoes) {
       const pa = posicoes.has(chave(a.rotulo)) ? posicoes.get(chave(a.rotulo)) : ordem.length;
       const pb = posicoes.has(chave(b.rotulo)) ? posicoes.get(chave(b.rotulo)) : ordem.length;
       if (pa !== pb) return pa - pb;
     }
-    const aNegativa = /^(nao|nenhum|nunca|sem |nao e avaliado)/.test(chave(a.rotulo));
-    const bNegativa = /^(nao|nenhum|nunca|sem |nao e avaliado)/.test(chave(b.rotulo));
-    if (aNegativa !== bNegativa) return aNegativa ? 1 : -1;
+    if (ordemLogica && !aNegativa && !bNegativa) {
+      const va = valorLogico(a.rotulo), vb = valorLogico(b.rotulo);
+      if (va && vb && va.valor !== vb.valor) return va.valor - vb.valor;
+      if (va && vb && va.relacao !== vb.relacao) return va.relacao - vb.relacao;
+      if (va !== vb) return va ? -1 : 1;
+    }
     return b.n - a.n || a.rotulo.localeCompare(b.rotulo, 'pt-BR');
   });
 }
@@ -476,7 +534,7 @@ function render() {
   $('grade').querySelectorAll('.mais').forEach(b => b.addEventListener('click', () => {
     const box = b.previousElementSibling;
     const expandido = b.getAttribute('aria-expanded') === 'true';
-    box.querySelectorAll('.b').forEach((x, i) => { if (i >= 5) x.hidden = expandido; });
+    box.querySelectorAll('.b').forEach((x, i) => { if (i >= 4) x.hidden = expandido; });
     b.setAttribute('aria-expanded', String(!expandido));
     b.textContent = expandido ? b.dataset.abrir : 'Ocultar demais';
   }));
@@ -528,7 +586,7 @@ function cartao(perguntaOriginal) {
 
 function corpoCat(q) {
   if (!q.opcoes || !q.opcoes.length) return '<p class="n">Sem respostas.</p>';
-  const LIM = 5, max = Math.max(...q.opcoes.map(o => o.pct));
+  const LIM = 4, max = Math.max(...q.opcoes.map(o => o.pct));
   const barras = q.opcoes.map((o, i) => `
     <div class="b"${i >= LIM ? ' hidden' : ''}>
       <div class="b-topo"><span class="b-rot">${textoFormatado(o.rotulo)}</span>
