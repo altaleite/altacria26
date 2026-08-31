@@ -177,6 +177,7 @@ const FASES = {"1": ["Fazendas", "contexto"], "2": ["Pré-parto", "antes de nasc
 let DADOS = null, capAtual = 0, termo = '';
 let DADOS_AO_VIVO = false;
 const FILTROS_MOCHACAO = { q070: '', q071: '' };
+const FILTROS_CUSTO = { q182: '', q184: '' };
 const API_DADOS = 'https://script.google.com/macros/s/AKfycbw1zIn_bEKJnIRQhOoAmt5iOxoDVYw4NZtxAlDxIaN8Y5yvXAH1wwC8Cq9Vwj5FCqYvtg/exec?api=dados_publicos';
 // A prévia do ChatGPT bloqueia conexões externas e exibe um pedido de
 // permissão. A API ao vivo só é consultada no endereço público do GitHub.
@@ -185,14 +186,16 @@ const $ = id => document.getElementById(id);
 const nf = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const pct = n => Math.round(Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-const PERGUNTAS_INTEIRAS = new Set(['q025', 'q026', 'q031', 'q033', 'q034', 'q051', 'q071', 'q092']);
+const PERGUNTAS_INTEIRAS = new Set(['q025', 'q026', 'q031', 'q033', 'q034', 'q051', 'q071', 'q092', 'q176']);
 function ehPerguntaInicioReducaoGradual(q) {
   const t = chave(q?.titulo || '');
   return t.includes('sistema de aleitamento') && t.includes('gradual') && t.includes('quantos dias de vida') && t.includes('primeira reducao');
 }
 function numeroPergunta(q, valor) {
-  if (!PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return nf(valor);
-  return Math.round(Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  const inteiro = Math.round(Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+  if (ehPerguntaCusto(q)) return `R$ ${inteiro}`;
+  if (PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return inteiro;
+  return nf(valor);
 }
 function numeroMediaPergunta(q, valor) {
   if (ehPerguntaInicioReducaoGradual(q)) {
@@ -201,10 +204,11 @@ function numeroMediaPergunta(q, valor) {
   return numeroPergunta(q, valor);
 }
 function faixaPergunta(q, faixa) {
-  if (!PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return String(faixa || '');
-  return String(faixa || '').replace(/-?\d+(?:[.,]\d+)?/g, valor =>
-    Math.round(Number(valor.replace(',', '.')) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
-  );
+  if (!PERGUNTAS_INTEIRAS.has(String(q.id || '')) && !ehPerguntaCusto(q)) return String(faixa || '');
+  return String(faixa || '').replace(/-?\d+(?:[.,]\d+)?/g, valor => {
+    const numero = Math.round(Number(valor.replace(',', '.')) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    return ehPerguntaCusto(q) ? `R$ ${numero}` : numero;
+  });
 }
 function textoFormatado(valor) {
   return esc(valor)
@@ -234,7 +238,7 @@ function tituloPergunta(q) {
 }
 function deveOcultar(q) {
   const id = idPergunta(q);
-  return id === 'q008' || id === 'q049' || id === 'q050' || chave(q.titulo).includes('modo de envio de dados para o programa alta cria');
+  return ['q008', 'q049', 'q050', 'q153', 'q154', 'q162', 'q163', 'q179', 'q180', 'q183', 'q185'].includes(id) || chave(q.titulo).includes('modo de envio de dados para o programa alta cria');
 }
 function idPergunta(q) { return chave(q.id || q.codigo || q.campo || q.num); }
 function ehPerguntaSucedaneoSolidos(q) {
@@ -247,7 +251,11 @@ function ehPerguntaAdensamento(q) {
 }
 function ehPerguntaProteinaConcentrado(q) {
   const t = chave(q.titulo);
-  return t.includes('percentual de proteina bruta') && t.includes('concentrado') && t.includes('aleitamento');
+  return t.includes('percentual de proteina bruta') && t.includes('concentrado');
+}
+function ehPerguntaCusto(q) {
+  const id = idPergunta(q);
+  return id === 'q182' || id === 'q184';
 }
 function ehPerguntaCriteriosDesaleitamento(q) {
   const t = chave(q.titulo);
@@ -604,6 +612,7 @@ function prepararPergunta(q) {
 }
 function prepararDados(dados) {
   if (!dados || !Array.isArray(dados.capitulos)) return dados;
+  dados.capitulos = dados.capitulos.filter(c => String(c.idx) !== '10');
   dados.capitulos.forEach(c => {
     if (String(c.idx) === '3') c.titulo = 'Parto e cuidados iniciais';
     else if (chave(c.titulo) === 'informacoes gerais e caracterizacao da fazenda') c.titulo = 'Informações gerais e caracterização das fazendas';
@@ -748,6 +757,10 @@ function render() {
     FILTROS_MOCHACAO[select.dataset.q] = select.value;
     render();
   }));
+  $('grade').querySelectorAll('.filtro-custo').forEach(select => select.addEventListener('change', () => {
+    FILTROS_CUSTO[select.dataset.q] = select.value;
+    render();
+  }));
   requestAnimationFrame(() => $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%'));
 }
 
@@ -755,11 +768,18 @@ function recortesMochacao(q) {
   return Array.isArray(q.recortes_tipo_mochacao) ? q.recortes_tipo_mochacao : [];
 }
 
+function recortesCusto(q) {
+  return Array.isArray(q.recortes_tipo_custo) ? q.recortes_tipo_custo : [];
+}
+
 function perguntaParaExibicao(q) {
   const id = idPergunta(q);
   const filtro = FILTROS_MOCHACAO[id] || '';
-  if (!filtro) return q;
-  const recorte = recortesMochacao(q).find(item => chave(item.rotulo) === filtro);
+  const filtroCusto = FILTROS_CUSTO[id] || '';
+  const recortes = filtro ? recortesMochacao(q) : recortesCusto(q);
+  const filtroAtivo = filtro || filtroCusto;
+  if (!filtroAtivo) return q;
+  const recorte = recortes.find(item => chave(item.rotulo) === filtroAtivo);
   if (!recorte || !recorte.dados) return q;
   return {
     ...q,
@@ -781,12 +801,23 @@ function controleFiltroMochacao(q) {
   return `<div class="filtro-card"><label for="filtro-${esc(id)}">Tipo de mochação</label><select class="filtro-mochacao" id="filtro-${esc(id)}" data-q="${esc(id)}"><option value="">Geral</option>${opcoes}</select></div>`;
 }
 
+function controleFiltroCusto(q) {
+  const recortes = recortesCusto(q);
+  if (!recortes.length) return '';
+  const id = idPergunta(q), selecionado = FILTROS_CUSTO[id] || '';
+  const opcoes = recortes.map(item => {
+    const valor = chave(item.rotulo);
+    return `<option value="${esc(valor)}"${valor === selecionado ? ' selected' : ''}>${esc(item.rotulo)}</option>`;
+  }).join('');
+  return `<div class="filtro-card"><label for="filtro-custo-${esc(id)}">Origem do custo</label><select class="filtro-custo" id="filtro-custo-${esc(id)}" data-q="${esc(id)}"><option value="">Geral</option>${opcoes}</select></div>`;
+}
+
 function cartao(perguntaOriginal) {
   const q = perguntaParaExibicao(perguntaOriginal);
   const nExibicao = Number(q.nExibicao ?? q.n) || 0;
   const topo = `<div class="cartao-cabeca"><h3>${textoFormatado(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
     <div class="n num">${nf(nExibicao)} ${nExibicao === 1 ? 'fazenda respondeu' : 'fazendas responderam'}</div>`;
-  return `<article class="cartao">${topo}${controleFiltroMochacao(perguntaOriginal)}${q.tipo === 'numerico' || q.tipo === 'escala' ? corpoNum(q) : corpoCat(q)}</article>`;
+  return `<article class="cartao">${topo}${controleFiltroMochacao(perguntaOriginal)}${controleFiltroCusto(perguntaOriginal)}${q.tipo === 'numerico' || q.tipo === 'escala' ? corpoNum(q) : corpoCat(q)}</article>`;
 }
 
 function corpoCat(q) {
