@@ -229,6 +229,113 @@ function deveOcultar(q) {
   return id === 'q008' || id === 'q049' || id === 'q050' || chave(q.titulo).includes('modo de envio de dados para o programa alta cria');
 }
 function idPergunta(q) { return chave(q.id || q.codigo || q.campo || q.num); }
+function ehPerguntaSucedaneoSolidos(q) {
+  const t = chave(q.titulo);
+  return t.includes('sucedaneo utilizado') && t.includes('diluido em agua') && t.includes('solidos totais');
+}
+function ehPerguntaAdensamento(q) {
+  const t = chave(q.titulo);
+  return t.includes('leite fornecido') && t.includes('adensado') && t.includes('solidos totais final');
+}
+function ehPerguntaProteinaConcentrado(q) {
+  const t = chave(q.titulo);
+  return t.includes('percentual de proteina bruta') && t.includes('concentrado') && t.includes('aleitamento');
+}
+function ehPerguntaCriteriosDesaleitamento(q) {
+  const t = chave(q.titulo);
+  return t.includes('quais criterios a fazenda considera para desaleitar as bezerras');
+}
+function deveOrdenarPorPercentualDaOpcao(q) {
+  return ehPerguntaSucedaneoSolidos(q) || ehPerguntaAdensamento(q) || ehPerguntaProteinaConcentrado(q);
+}
+function deveExibirOpcaoComoPercentual(q) {
+  return ehPerguntaAdensamento(q) || ehPerguntaProteinaConcentrado(q);
+}
+function valorPercentualOpcao(rotulo) {
+  const texto = removerAcentos(rotulo).toLowerCase().replace(/,/g, '.');
+  const pctExplicito = texto.match(/(-?\d+(?:\.\d+)?)\s*%/);
+  if (pctExplicito) return Number(pctExplicito[1]);
+  const proporcao = texto.match(/(-?\d+(?:\.\d+)?)\s*:\s*(-?\d+(?:\.\d+)?)/);
+  if (proporcao) {
+    const parteSolido = Number(proporcao[1]), parteAgua = Number(proporcao[2]);
+    if (parteSolido > 0 && parteAgua > 0) return parteSolido * 100 / (parteSolido + parteAgua);
+  }
+  const numero = texto.match(/-?\d+(?:\.\d+)?/);
+  return numero ? Number(numero[0]) : null;
+}
+function formatarOpcaoPercentual(q, rotulo) {
+  const original = String(rotulo || '').trim();
+  if (!deveExibirOpcaoComoPercentual(q) || !/\d/.test(original) || /%/.test(original)) return original;
+  return original.replace(/\d+(?:[.,]\d+)?/g, valor => `${valor}%`);
+}
+function opcaoSemAdensamento(q, rotulo) {
+  if (!ehPerguntaAdensamento(q)) return false;
+  const k = chave(rotulo);
+  return k.startsWith('nao e realizado o adensamento da dieta liquida');
+}
+const ORDEM_CRITERIOS_DESALEITAMENTO = [
+  ['consumo de concentrado', 'Consumo de concentrado'],
+  ['idade', 'Idade'],
+  ['lotacao no bezerreiro', 'Lotação no bezerreiro'],
+  ['peso', 'Peso']
+];
+function normalizarCombinacaoCriterios(valor) {
+  const bruto = Array.isArray(valor) ? valor.join(' | ') : String(valor ?? '').trim();
+  if (!bruto) return '';
+  let partes = bruto.split(/\s*\|\s*|\s*;\s*|\s*\n\s*/).filter(Boolean);
+  const ch = chave(bruto);
+  const reconhecidos = ORDEM_CRITERIOS_DESALEITAMENTO.filter(([k]) => ch.includes(k)).length;
+  if (partes.length === 1 && reconhecidos >= 2 && bruto.includes(',')) {
+    partes = bruto.split(/\s*,\s*/).filter(Boolean);
+  }
+  const vistos = new Set();
+  const itens = [];
+  partes.forEach(parte => {
+    const kp = chave(parte);
+    const conhecido = ORDEM_CRITERIOS_DESALEITAMENTO.find(([k]) => kp === k || kp.includes(k));
+    const nome = conhecido ? conhecido[1] : String(parte).trim();
+    const kn = chave(nome);
+    if (!kn || vistos.has(kn)) return;
+    vistos.add(kn);
+    itens.push(nome);
+  });
+  itens.sort((a, b) => {
+    const ia = ORDEM_CRITERIOS_DESALEITAMENTO.findIndex(([k]) => chave(a).includes(k));
+    const ib = ORDEM_CRITERIOS_DESALEITAMENTO.findIndex(([k]) => chave(b).includes(k));
+    const pa = ia < 0 ? 999 : ia, pb = ib < 0 ? 999 : ib;
+    return pa - pb || a.localeCompare(b, 'pt-BR');
+  });
+  return itens.join(' | ');
+}
+function opcoesCriteriosDesaleitamento(q, opcoesPadrao) {
+  if (!ehPerguntaCriteriosDesaleitamento(q)) return { opcoes: opcoesPadrao, combinadas: false };
+  const fontes = [q.combinacoes, q.respostas_combinadas, q.respostas_individuais, q.respostas];
+  const fonte = fontes.find(lista => Array.isArray(lista) && lista.length);
+  if (fonte) {
+    const mapa = new Map();
+    fonte.forEach(item => {
+      let resposta, n = 1;
+      if (typeof item === 'string' || Array.isArray(item)) resposta = item;
+      else if (item && typeof item === 'object') {
+        resposta = item.rotulo ?? item.resposta ?? item.valor ?? item.opcoes ?? item.criterios;
+        n = Number(item.n ?? item.quantidade ?? item.count ?? 1) || 1;
+      }
+      const rotulo = normalizarCombinacaoCriterios(resposta);
+      if (!rotulo) return;
+      const k = chave(rotulo), atual = mapa.get(k) || { rotulo, n: 0 };
+      atual.n += n; mapa.set(k, atual);
+    });
+    if (mapa.size) return { opcoes: [...mapa.values()], combinadas: true };
+  }
+  const mapa = new Map();
+  (opcoesPadrao || []).forEach(item => {
+    const rotulo = normalizarCombinacaoCriterios(item.rotulo);
+    if (!rotulo) return;
+    const k = chave(rotulo), atual = mapa.get(k) || { rotulo, n: 0 };
+    atual.n += Number(item.n) || 0; mapa.set(k, atual);
+  });
+  return { opcoes: [...mapa.values()], combinadas: false };
+}
 function respostaOutro(q) {
   const fontes = [q.q029_outro, q.q030_outro, q.outro, q.outros, q.opcoes_outro, q.detalhes_outro], itens = [];
   fontes.forEach(fonte => { if (Array.isArray(fonte)) itens.push(...fonte); else if (fonte && typeof fonte === 'object') itens.push(...Object.entries(fonte).map(([rotulo, n]) => typeof n === 'object' ? n : ({ rotulo, n }))); else if (typeof fonte === 'string' && fonte.trim()) itens.push({ rotulo: fonte, n: 1 }); });
@@ -242,11 +349,14 @@ function rotuloPadrao(q, rotulo) {
       Number(valor.replace(',', '.')).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     );
   }
+  original = formatarOpcaoPercentual(q, original);
   const k = chave(original);
   if (chave(q.titulo).includes('estado') && ESTADOS[k]) return ESTADOS[k];
   if (['sim', 'yes'].includes(k)) return 'Sim'; if (['nao', 'no'].includes(k)) return 'Não'; if (['na', 'n a', 'nao se aplica'].includes(k)) return 'Não se aplica';
   if (!original) return 'Sem informação';
   if (identificador.includes('q044')) return original;
+  // Preserva siglas exatamente como vieram da planilha (ex.: CCPR), sem convertê-las para Ccpr.
+  if (/\b[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}\b/.test(original)) return original;
   return original === original.toLocaleUpperCase('pt-BR') || original === original.toLocaleLowerCase('pt-BR')
     ? original.toLocaleLowerCase('pt-BR').replace(/^./, letra => letra.toLocaleUpperCase('pt-BR')) : original;
 }
@@ -350,6 +460,11 @@ function ordenarRespostas(q, opcoes) {
       const pb = posicoes.has(chave(b.rotulo)) ? posicoes.get(chave(b.rotulo)) : ordem.length;
       if (pa !== pb) return pa - pb;
     }
+    if (deveOrdenarPorPercentualDaOpcao(q) && !aNegativa && !bNegativa) {
+      const va = valorPercentualOpcao(a.rotulo), vb = valorPercentualOpcao(b.rotulo);
+      if (va !== null && vb !== null && va !== vb) return va - vb;
+      if ((va !== null) !== (vb !== null)) return va !== null ? -1 : 1;
+    }
     if (ordemLogica && !aNegativa && !bNegativa) {
       const va = valorLogico(a.rotulo), vb = valorLogico(b.rotulo);
       if (va && vb && va.valor !== vb.valor) return va.valor - vb.valor;
@@ -367,11 +482,22 @@ function denominadorReal(q) {
 }
 function prepararPergunta(q) {
   if (!q || typeof q !== 'object') return q;
-  q.titulo = tituloPergunta(q); const denominador = denominadorReal(q); if (denominador) q.n = denominador;
-  if (Array.isArray(q.opcoes)) {
+  q.titulo = tituloPergunta(q);
+  let opcoesFonte = Array.isArray(q.opcoes) ? q.opcoes : [];
+  const criterios = opcoesCriteriosDesaleitamento(q, opcoesFonte);
+  opcoesFonte = criterios.opcoes;
+  if (ehPerguntaAdensamento(q)) {
+    opcoesFonte = opcoesFonte.filter(opcao => !opcaoSemAdensamento(q, opcao.rotulo));
+  }
+  let denominador = denominadorReal(q);
+  if (ehPerguntaAdensamento(q) || criterios.combinadas) {
+    denominador = opcoesFonte.reduce((soma, opcao) => soma + (Number(opcao.n) || 0), 0);
+  }
+  if (denominador) q.n = denominador;
+  if (Array.isArray(opcoesFonte)) {
     const outros = respostaOutro(q), identificador = idPergunta(q), substituirOutro = identificador.includes('q029') || identificador.includes('q030') || chave(q.titulo).includes('raca predominante') || chave(q.titulo).includes('principal software'), acumulado = new Map();
     function inserir(rotulo, n) { const nome = rotuloPadrao(q, rotulo), k = chave(nome), atual = acumulado.get(k) || { rotulo: nome, n: 0 }; atual.n += n; acumulado.set(k, atual); }
-    q.opcoes.forEach(opcao => {
+    opcoesFonte.forEach(opcao => {
       const pendente = chave(opcao.rotulo).includes('outro aguardando classificacao');
       if (pendente && substituirOutro && outros.length) {
         outros.forEach(item => inserir(item.rotulo, item.n));
@@ -494,6 +620,7 @@ function montarTrilha() {
   }).join('');
   $('trilha').querySelectorAll('.fase').forEach(b => b.addEventListener('click', () => {
     capAtual = +b.dataset.i; termo = ''; $('busca').value = ''; render();
+    window.scrollTo({ top: 0, behavior: 'auto' });
   }));
 }
 
