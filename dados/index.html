@@ -288,7 +288,8 @@ function valorPercentualOpcao(rotulo) {
 function formatarOpcaoPercentual(q, rotulo) {
   const original = String(rotulo || '').trim();
   if (!deveExibirOpcaoComoPercentual(q) || !/\d/.test(original)) return original;
-  return original.replace(/(-?\d+(?:[.,]\d+)?)\s*%?/g, (_, valor) => `${formatarNumeroPercentual(valor)}%`);
+  const unidade = ehPerguntaAdensamento(q) ? ' de sólidos totais' : ' de PB';
+  return original.replace(/(-?\d+(?:[.,]\d+)?)\s*%?/g, (_, valor) => `${formatarNumeroPercentual(valor)}%${unidade}`);
 }
 function opcaoSemAdensamento(q, rotulo) {
   if (!ehPerguntaAdensamento(q)) return false;
@@ -360,7 +361,11 @@ function opcoesCriteriosDesaleitamento(q, opcoesPadrao) {
 }
 const ORDEM_MONITORAMENTO_TRISTEZA = [
   ['avaliacao periodica da temperatura retal dos animais', 'Avaliação periódica da temperatura retal dos animais'],
-  ['comportamento do animal', 'Comportamento do animal']
+  ['comportamento do animal', 'Comportamento do animal'],
+  ['hematocrito', 'Hematócrito'],
+  ['exame de lamina sangue', 'Exame de lâmina (sangue)'],
+  ['colares e ou brincos', 'Colares e/ou brincos'],
+  ['nao e monitorada', 'Não é monitorada']
 ];
 function normalizarCombinacaoMonitoramentoTristeza(valor) {
   const bruto = Array.isArray(valor) ? valor.join(' | ') : String(valor ?? '').trim();
