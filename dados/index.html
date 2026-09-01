@@ -715,11 +715,7 @@ function montarTrilha() {
 
 $('busca').addEventListener('input', e => { termo = e.target.value.trim().toLowerCase(); render(); });
 $('voltarInicio').addEventListener('click', () => {
-  capAtual = 0;
-  termo = '';
-  $('busca').value = '';
-  render();
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  window.location.href = '../pagina-inicial/';
 });
 
 function perguntasVisiveis() {
