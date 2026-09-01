@@ -61,6 +61,8 @@
 
   .grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start;}
   .cartao{background:var(--branco);border:1px solid var(--linha);border-radius:13px;padding:17px 18px 15px;}
+  .cartao-largo{grid-column:span 2;}
+  @media (max-width:719px){ .cartao-largo{grid-column:span 1;} }
   .cartao .qn{font-family:var(--display);font-weight:700;font-size:13px;color:var(--am-escuro);letter-spacing:.08em;}
   .cartao h3{font-size:15.5px;font-weight:600;margin:1px 0 3px;line-height:1.32;color:var(--navy);}
   .cartao .n{font-size:12.5px;color:var(--fraca);margin-bottom:12px;}
@@ -85,14 +87,33 @@
   .fx .v{display:block;font-family:var(--display);font-weight:700;font-size:23px;color:var(--navy);line-height:1.1;font-variant-numeric:tabular-nums;}
   .fx.dest .v{color:var(--am-escuro);}
   .hist{display:flex;align-items:flex-end;gap:3px;height:78px;}
-  .hb{flex:1;background:#DCE6EF;border-radius:3px 3px 0 0;position:relative;min-height:2px;transition:background .15s;}
+  .hb{flex:1;background:#DCE6EF;border-radius:3px 3px 0 0;position:relative;min-height:2px;transition:background .15s;cursor:pointer;}
   .hb:hover{background:var(--am);}
+  .hb.aberto{background:var(--am);}
   .hb span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:5px;background:var(--navy);
     color:#fff;font-size:11px;padding:3px 7px;border-radius:5px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;}
-  .hb:hover span{opacity:1;}
+  .hb:hover span,.hb.aberto span{opacity:1;}
   .heixo{display:flex;justify-content:space-between;font-size:10.5px;color:var(--fraca);margin-top:5px;}
 
   .vazio{background:#fff;border:1px dashed var(--linha);border-radius:13px;padding:46px 20px;text-align:center;color:var(--fraca);}
+  .abas-interno{display:flex;gap:8px;margin:0 0 20px;}
+  .aba-interno{border:1px solid var(--linha);background:#fff;color:var(--navy);font:inherit;font-weight:700;font-size:14px;padding:9px 16px;border-radius:9px;cursor:pointer;}
+  .aba-interno[aria-selected="true"]{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .fb-aviso{background:#FFF6E0;border:1px solid #F0C24B;color:#7A5C12;font-size:13.5px;line-height:1.5;border-radius:10px;padding:12px 15px;margin-bottom:20px;}
+  .fb-aviso code{background:rgba(0,0,0,.06);padding:1px 5px;border-radius:4px;font-size:.95em;}
+  .fb-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:26px;}
+  .fb-num{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:16px 18px;}
+  .fb-num b{display:block;font-size:32px;font-weight:700;color:var(--navy);line-height:1.1;}
+  .fb-num span{display:block;font-size:13px;color:var(--fraca);margin-top:4px;}
+  .fb-num.fb-dest{border-color:var(--am);background:#FFFBF0;}
+  .fb-num.fb-dest b{color:#C98D00;}
+  .fb-subtitulo{font-size:19px;color:var(--navy);margin:26px 0 10px;}
+  .fb-nota{font-size:13.5px;color:var(--fraca);margin:0 0 14px;}
+  .fb-acoes{margin:0 0 8px;padding-left:22px;display:flex;flex-direction:column;gap:10px;}
+  .fb-acoes li{font-size:14.5px;line-height:1.5;}
+  .fb-sinal{border-left:4px solid #7A1F1F;}
+  .fb-sinal h3{font-size:17px;}
+  .fb-sinal p{font-size:14px;line-height:1.55;color:#3A4550;margin:0;}
   .aviso-demo{background:#FFF6E0;border-bottom:1px solid #F0C24B;color:#7A5C12;font-size:13.5px;text-align:center;padding:9px 16px;}
   .aviso-interno{background:#7A1F1F;border-bottom:1px solid #4A0F0F;color:#fff;font-size:13.5px;font-weight:700;letter-spacing:.02em;text-align:center;padding:10px 16px;}
   footer{border-top:1px solid var(--linha);padding:26px 22px 40px;text-align:center;color:var(--fraca);font-size:13px;}
@@ -156,16 +177,80 @@
 </header>
 
 <main>
-  <div class="cabeca">
-    <h2 id="tituloCap">—</h2>
-    <span class="cont" id="contCap"></span>
-    <div class="busca">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      <input id="busca" type="search" placeholder="Buscar perguntas" aria-label="Buscar em todas as perguntas">
-    </div>
+  <div class="abas-interno" role="tablist" aria-label="Seções da versão interna">
+    <button class="aba-interno" type="button" data-aba="perguntas" role="tab" aria-selected="true">Perguntas ocultas</button>
+    <button class="aba-interno" type="button" data-aba="feedback" role="tab" aria-selected="false">Feedback escrito (q195)</button>
   </div>
-  <div class="grade" id="grade"></div>
-  <div class="vazio" id="vazio" hidden></div>
+
+  <div id="secaoPerguntas">
+    <div class="cabeca">
+      <h2 id="tituloCap">—</h2>
+      <span class="cont" id="contCap"></span>
+      <div class="busca">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="busca" type="search" placeholder="Buscar perguntas" aria-label="Buscar em todas as perguntas">
+      </div>
+    </div>
+    <div class="grade" id="grade"></div>
+    <div class="vazio" id="vazio" hidden></div>
+  </div>
+
+  <section id="secaoFeedback" hidden>
+    <div class="cabeca">
+      <h2>Feedback escrito das fazendas</h2>
+      <span class="cont">pergunta q195 — campo de texto livre no final do questionário</span>
+    </div>
+
+    <div class="fb-aviso">
+      <strong>Análise pontual, não ao vivo.</strong> Feita a partir de uma exportação da planilha
+      <code>Respostas_26</code> em 01/09/2026 (204 respostas). Esta pergunta é texto livre — nunca entra
+      na base agregada pública (<code>dados_publicos</code>) porque é digitada e pode identificar a fazenda.
+      Por isso, nada aqui atualiza sozinho: para renovar a análise, exporte a coluna <code>q195</code> de novo
+      e peça uma nova leitura. Por segurança, esta seção mostra <strong>temas e contagens, nunca a resposta
+      literal de uma fazenda</strong> — texto livre é o dado mais fácil de identificar quem respondeu.
+    </div>
+
+    <div class="fb-resumo">
+      <div class="fb-num"><b>204</b><span>fazendas responderam ao questionário 25/26</span></div>
+      <div class="fb-num"><b>192</b><span>escreveram algo no campo final (94%)</span></div>
+      <div class="fb-num"><b>154</b><span>foram só elogio/agradecimento, sem pedido (80% de 192)</span></div>
+      <div class="fb-num fb-dest"><b>38</b><span>trouxeram sugestão, crítica ou pedido concreto (20% de 192)</span></div>
+    </div>
+
+    <h3 class="fb-subtitulo">Ações prioritárias</h3>
+    <ol class="fb-acoes">
+      <li><b>Retomar visitas técnicas em campo.</b> Foi o pedido mais repetido (~11 fazendas). Várias mencionam que auditorias presenciais existiam antes e faziam diferença real no manejo — e que pararam de acontecer.</li>
+      <li><b>Disponibilizar eventos e treinamentos em formato online, com mais tempo de acesso.</b> ~10 fazendas pediram isso, várias citando distância geográfica de onde os eventos presenciais acontecem hoje.</li>
+      <li><b>Programa de capacitação recorrente para os colaboradores do bezerreiro</b> (não só para o proprietário/técnico responsável). ~5 fazendas pediram.</li>
+      <li><b>Resumo automático dos pontos de atenção no relatório</b> — a fazenda recebe os percentis, mas pede uma leitura já pronta do que fazer com eles. ~4 fazendas.</li>
+      <li><b>Revisar o tamanho do questionário.</b> 3 fazendas pediram formulários mais curtos e mais frequentes em vez de um único levantamento extenso.</li>
+    </ol>
+
+    <h3 class="fb-subtitulo">Sinalizações pontuais</h3>
+    <p class="fb-nota">Estas não vieram de muita gente — mas pelo conteúdo, pesam mais do que o volume sugere.</p>
+    <div class="grade">
+      <article class="cartao fb-sinal">
+        <h3>Desconfiança sobre os lançamentos de outras fazendas</h3>
+        <p>Duas fazendas (com o mesmo texto, quase palavra por palavra) disseram achar que outras propriedades lançam dados fora da realidade, e que isso prejudica quem lança certo na comparação entre fazendas. Isso ataca direto a credibilidade do benchmarking — vale entender se é percepção ou se há sinal real de inconsistência nos dados.</p>
+      </article>
+      <article class="cartao fb-sinal">
+        <h3>Viés percebido de porte e região</h3>
+        <p>Um relato longo e detalhado de uma fazenda menor, fora do eixo SP/MG, descrevendo a sensação de que o programa foca nos grandes produtores, que eventos que já aconteceram na região dela pararam, e que não há transmissão online das palestras para quem mora longe. Vale ler o relato completo na planilha antes de decidir se é caso isolado.</p>
+      </article>
+      <article class="cartao fb-sinal">
+        <h3>Erro técnico na importação de dados do DairyComp</h3>
+        <p>Uma fazenda relata que os dados importados do DairyComp costumam vir com erro na importação. Isso é um problema técnico de pipeline, não de opinião — vale repassar para quem cuida da integração de dados.</p>
+      </article>
+      <article class="cartao fb-sinal">
+        <h3>Fazenda afastada há 6 meses</h3>
+        <p>Uma fazenda registrou que está sem participar ativamente do programa há 6 meses e por isso não teve como opinar. Sinal de possível evasão que vale checar diretamente com ela.</p>
+      </article>
+      <article class="cartao fb-sinal">
+        <h3>Escopo de dados: genética dos touros e animais mestiços</h3>
+        <p>Duas fazendas pediram que o programa passasse a coletar dados genéticos/genômicos dos touros usados e dos animais mestiços leite×corte — hoje isso não é perguntado em nenhum capítulo. É uma lacuna de escopo do questionário, não de exibição.</p>
+      </article>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -238,11 +323,16 @@ function tituloPergunta(q) {
   return chave(t) === 'informacoes gerais e caracterizacao da fazenda' ? 'Informações gerais e caracterização das fazendas' : t;
 }
 function deveOcultar(q) {
-  // Versão INTERNA: nada é ocultado. Na versão pública (site_github/dados/),
-  // esta função esconde ['q008','q049','q050','q153','q154','q162','q163',
-  // 'q179','q180','q183','q185'] e qualquer pergunta de "modo de envio de
-  // dados" — de propósito, mantenha as duas versões em sincronia manual.
+  // Versão INTERNA: nada é ocultado dentro da lista já filtrada (ver
+  // deveOcultarPublico, usada em prepararDados para MONTAR essa lista).
   return false;
+}
+function deveOcultarPublico(q) {
+  // Regra idêntica à da versão pública (/dados/index.html): é o que define
+  // o que fica de fora de lá. Aqui é usada ao contrário — para selecionar
+  // só essas perguntas. Mantenha as duas em sincronia manual.
+  const id = idPergunta(q);
+  return ['q008', 'q049', 'q050', 'q153', 'q154', 'q162', 'q163', 'q179', 'q180', 'q183', 'q185'].includes(id) || chave(q.titulo).includes('modo de envio de dados para o programa alta cria');
 }
 function idPergunta(q) { return chave(q.id || q.codigo || q.campo || q.num); }
 function ehPerguntaSucedaneoSolidos(q) {
@@ -616,17 +706,21 @@ function prepararPergunta(q) {
 }
 function prepararDados(dados) {
   if (!dados || !Array.isArray(dados.capitulos)) return dados;
-  // Versão INTERNA: mantém o capítulo 10 ("Avaliação geral do Programa
-  // Alta CRIA" — notas dadas ao programa, ao grupo de WhatsApp e às
-  // reuniões do TA ON). A versão pública remove esse capítulo inteiro.
+  // Versão INTERNA (só o que não está em /dados/): junta, numa lista única,
+  // sem divisão por capítulo, as perguntas ocultas na versão pública
+  // (deveOcultarPublico) e todo o capítulo 10 ("Avaliação geral do
+  // Programa Alta CRIA"). Tudo o que já é público foi removido daqui.
+  const restritas = [];
   dados.capitulos.forEach(c => {
-    if (String(c.idx) === '3') c.titulo = 'Parto e cuidados iniciais';
-    else if (chave(c.titulo) === 'informacoes gerais e caracterizacao da fazenda') c.titulo = 'Informações gerais e caracterização das fazendas';
-    c.perguntas = (c.perguntas || []).filter(q => !deveOcultar(q)).map(prepararPergunta);
-    // Cada card mostra somente as fazendas que responderam àquela pergunta.
-    // Não usar o total geral do painel, pois há questões condicionais.
-    c.perguntas.forEach(q => q.nExibicao = Number(q.n) || 0);
+    (c.perguntas || []).forEach(q => {
+      if (deveOcultarPublico(q) || String(c.idx) === '10') restritas.push(q);
+    });
   });
+  const perguntas = restritas.map(prepararPergunta);
+  // Cada card mostra somente as fazendas que responderam àquela pergunta.
+  // Não usar o total geral do painel, pois há questões condicionais.
+  perguntas.forEach(q => q.nExibicao = Number(q.n) || 0);
+  dados.capitulos = [{ idx: 'interno', titulo: 'Perguntas fora da versão pública', perguntas }];
   return dados;
 }
 
@@ -706,6 +800,7 @@ function iniciar() {
 }
 
 function montarTrilha() {
+  if (DADOS.capitulos.length <= 1) { $('trilha').hidden = true; $('trilha').innerHTML = ''; return; }
   $('trilha').innerHTML = DADOS.capitulos.map((c, i) => {
     const f = FASES[c.idx] || [c.titulo, ''];
     return `<button class="fase" role="tab" data-i="${i}" aria-selected="${i === 0}">
@@ -721,6 +816,14 @@ $('busca').addEventListener('input', e => { termo = e.target.value.trim().toLowe
 $('voltarInicio').addEventListener('click', () => {
   window.location.href = '../pagina-inicial/';
 });
+
+document.querySelectorAll('.aba-interno').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.aba-interno').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  const ehPerguntas = b.dataset.aba === 'perguntas';
+  $('secaoPerguntas').hidden = !ehPerguntas;
+  $('secaoFeedback').hidden = ehPerguntas;
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}));
 
 function perguntasVisiveis() {
   if (termo) {
@@ -762,6 +865,11 @@ function render() {
   $('grade').querySelectorAll('.filtro-custo').forEach(select => select.addEventListener('change', () => {
     FILTROS_CUSTO[select.dataset.q] = select.value;
     render();
+  }));
+  $('grade').querySelectorAll('.hb').forEach(b => b.addEventListener('click', () => {
+    const jaAberta = b.classList.contains('aberto');
+    b.closest('.hist').querySelectorAll('.hb').forEach(x => x.classList.remove('aberto'));
+    if (!jaAberta) b.classList.add('aberto');
   }));
   requestAnimationFrame(() => $('grade').querySelectorAll('.barra').forEach(x => x.style.width = x.dataset.w + '%'));
 }
@@ -817,9 +925,11 @@ function controleFiltroCusto(q) {
 function cartao(perguntaOriginal) {
   const q = perguntaParaExibicao(perguntaOriginal);
   const nExibicao = Number(q.nExibicao ?? q.n) || 0;
+  const ehNumerica = q.tipo === 'numerico' || q.tipo === 'escala';
+  const largo = !ehNumerica && Array.isArray(q.opcoes) && q.opcoes.length > 8;
   const topo = `<div class="cartao-cabeca"><h3>${textoFormatado(q.titulo)}</h3><button class="exportar" type="button" title="Salvar esta resposta como PNG" aria-label="Salvar esta resposta como PNG">${iconeExportar}<span>PNG</span></button></div>
     <div class="n num">${nf(nExibicao)} ${nExibicao === 1 ? 'fazenda respondeu' : 'fazendas responderam'}</div>`;
-  return `<article class="cartao">${topo}${controleFiltroMochacao(perguntaOriginal)}${controleFiltroCusto(perguntaOriginal)}${q.tipo === 'numerico' || q.tipo === 'escala' ? corpoNum(q) : corpoCat(q)}</article>`;
+  return `<article class="cartao${largo ? ' cartao-largo' : ''}">${topo}${controleFiltroMochacao(perguntaOriginal)}${controleFiltroCusto(perguntaOriginal)}${ehNumerica ? corpoNum(q) : corpoCat(q)}</article>`;
 }
 
 function corpoCat(q) {
