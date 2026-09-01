@@ -114,6 +114,14 @@
   .fb-sinal{border-left:4px solid #7A1F1F;}
   .fb-sinal h3{font-size:17px;}
   .fb-sinal p{font-size:14px;line-height:1.55;color:#3A4550;margin:0;}
+  .filtro-fazenda{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:14px 16px;margin-bottom:18px;}
+  .ff-linha{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+  .ff-linha label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--fraca);font-weight:700;text-transform:uppercase;letter-spacing:.02em;}
+  .ff-linha select{font:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--linha);border-radius:8px;color:var(--navy);min-width:170px;background:#fff;}
+  .ff-limpar{border:1px solid var(--am);background:#FFFBF0;color:#8A6300;font:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;height:35px;}
+  .ff-aviso{font-size:12.5px;color:var(--fraca);margin:10px 0 0;}
+  .ff-aviso strong{color:var(--navy);}
+  #ff-contagem{font-weight:700;color:var(--navy);}
   .aviso-demo{background:#FFF6E0;border-bottom:1px solid #F0C24B;color:#7A5C12;font-size:13.5px;text-align:center;padding:9px 16px;}
   .aviso-interno{background:#7A1F1F;border-bottom:1px solid #4A0F0F;color:#fff;font-size:13.5px;font-weight:700;letter-spacing:.02em;text-align:center;padding:10px 16px;}
   footer{border-top:1px solid var(--linha);padding:26px 22px 40px;text-align:center;color:var(--fraca);font-size:13px;}
@@ -183,6 +191,16 @@
   </div>
 
   <div id="secaoPerguntas">
+    <div class="filtro-fazenda" id="filtroFazenda">
+      <div class="ff-linha">
+        <label>Distrital<select id="ff-distrital"></select></label>
+        <label>Regional<select id="ff-regional"></select></label>
+        <label>Responsável<select id="ff-responsavel"></select></label>
+        <label>Fazenda<select id="ff-fazenda"></select></label>
+        <button type="button" id="ff-limpar" class="ff-limpar" hidden>Limpar filtro</button>
+      </div>
+      <p class="ff-aviso">Ao escolher um filtro, os números das perguntas abaixo são <strong>recalculados só para as fazendas que combinam com ele</strong> — deixam de ser o total do programa. <span id="ff-contagem"></span></p>
+    </div>
     <div class="cabeca">
       <h2 id="tituloCap">—</h2>
       <span class="cont" id="contCap"></span>
@@ -264,6 +282,11 @@ let DADOS = null, capAtual = 0, termo = '';
 let DADOS_AO_VIVO = false;
 const FILTROS_MOCHACAO = { q070: '', q071: '' };
 const FILTROS_CUSTO = { q182: '', q184: '' };
+let FAZENDAS_RAW = null;
+const FILTRO_FAZENDA = { distrital: '', regional: '', responsavel: '', fazenda: '' };
+const CAMPOS_FILTRO_INTERNO = ['q008', 'q179', 'q180', 'q191', 'q192', 'q193', 'q194'];
+const CAMPOS_MULTIPLA_INTERNO = new Set(['q179', 'q180']);
+const CAMPOS_NUMERICOS_INTERNO = new Set(['q191', 'q192', 'q194']);
 const API_DADOS = 'https://script.google.com/macros/s/AKfycbw1zIn_bEKJnIRQhOoAmt5iOxoDVYw4NZtxAlDxIaN8Y5yvXAH1wwC8Cq9Vwj5FCqYvtg/exec?api=dados_publicos';
 // A prévia do ChatGPT bloqueia conexões externas e exibe um pedido de
 // permissão. A API ao vivo só é consultada no endereço público do GitHub.
@@ -281,6 +304,10 @@ function numeroPergunta(q, valor) {
   const inteiro = Math.round(Number(valor) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
   if (ehPerguntaCusto(q)) return `R$ ${inteiro}`;
   if (PERGUNTAS_INTEIRAS.has(String(q.id || ''))) return inteiro;
+  // Notas de 0 a 10 (capítulo 10): sempre 1 casa decimal, mesmo em valor
+  // "redondo" (9 vira "9,0"), para não misturar com/sem decimal na mesma
+  // fileira de P25/Mediana/P75/Média — pedido explícito.
+  if (q.tipo === 'escala') return Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return nf(valor);
 }
 function numeroMediaPergunta(q, valor) {
@@ -704,15 +731,20 @@ function prepararPergunta(q) {
   }
   return q;
 }
+const OCULTAR_TAMBEM_NO_INTERNO = ['q049', 'q050', 'q153', 'q154', 'q162', 'q163', 'q183', 'q185'];
 function prepararDados(dados) {
   if (!dados || !Array.isArray(dados.capitulos)) return dados;
   // Versão INTERNA (só o que não está em /dados/): junta, numa lista única,
   // sem divisão por capítulo, as perguntas ocultas na versão pública
   // (deveOcultarPublico) e todo o capítulo 10 ("Avaliação geral do
   // Programa Alta CRIA"). Tudo o que já é público foi removido daqui.
+  // Além disso, OCULTAR_TAMBEM_NO_INTERNO tira também as medidas de baia/
+  // instalação e os dois campos "o valor do custo foi" — pedido explícito,
+  // mesmo sendo perguntas que só existiam na lista interna.
   const restritas = [];
   dados.capitulos.forEach(c => {
     (c.perguntas || []).forEach(q => {
+      if (OCULTAR_TAMBEM_NO_INTERNO.includes(idPergunta(q))) return;
       if (deveOcultarPublico(q) || String(c.idx) === '10') restritas.push(q);
     });
   });
@@ -796,7 +828,7 @@ function iniciar() {
     $('vazio').innerHTML = '<b>Ainda não há respostas suficientes.</b>';
     return;
   }
-  montarTrilha(); render();
+  montarTrilha(); atualizarSecaoPerguntas();
 }
 
 function montarTrilha() {
@@ -825,6 +857,159 @@ document.querySelectorAll('.aba-interno').forEach(b => b.addEventListener('click
   window.scrollTo({ top: 0, behavior: 'auto' });
 }));
 
+/* ===================================================================
+   FILTRO EM CASCATA POR FAZENDA / RESPONSÁVEL / DISTRITAL / REGIONAL
+   Cruza codigoAcesso (Respostas_26) com Fazenda/Responsável/Distrital/
+   Regional (aba Base, colunas D/F/X/Y) — extraído uma única vez para o
+   arquivo fazendas.json, não é uma consulta ao vivo. Ao escolher um
+   filtro, as 7 perguntas da lista acima são recalculadas no navegador com
+   os mesmos cálculos do backend (percentil_/histograma_ do Apps Script,
+   portados aqui) — os "Outro" de q179/q180 não passam pela curadoria
+   manual nesta visão filtrada, então aparecem agrupados como "Outro".
+   =================================================================== */
+function percentilInterno(ord, p) {
+  if (!ord.length) return 0;
+  const pos = (ord.length - 1) * p / 100;
+  const b = Math.floor(pos), resto = pos - b;
+  return ord[b + 1] !== undefined ? ord[b] + resto * (ord[b + 1] - ord[b]) : ord[b];
+}
+const arredInterno = v => Math.round(v * 100) / 100;
+function fmtInterno(v) {
+  if (Math.abs(v) >= 100) return String(Math.round(v));
+  if (Math.abs(v) >= 10) return String(Math.round(v * 10) / 10);
+  return String(Math.round(v * 100) / 100);
+}
+function histogramaInterno(ord) {
+  const n = ord.length;
+  if (n < 4) return [];
+  const lo = percentilInterno(ord, 5), hi = percentilInterno(ord, 95);
+  if (hi <= lo) return [];
+  const nb = Math.min(8, Math.max(4, Math.round(Math.sqrt(n))));
+  const larg = (hi - lo) / nb;
+  const faixas = [];
+  for (let i = 0; i < nb; i++) faixas.push({ ini: lo + i * larg, fim: lo + (i + 1) * larg, n: 0 });
+  for (let j = 0; j < n; j++) {
+    let idx = Math.floor((ord[j] - lo) / larg);
+    if (idx < 0) idx = 0;
+    if (idx >= nb) idx = nb - 1;
+    faixas[idx].n++;
+  }
+  return faixas.map((f, i) => ({
+    faixa: i === 0 ? '< ' + fmtInterno(f.fim) : i === nb - 1 ? '≥ ' + fmtInterno(f.ini) : fmtInterno(f.ini) + ' a ' + fmtInterno(f.fim),
+    n: f.n
+  }));
+}
+function estatCategoricaInterno(farms, campo) {
+  const cont = {}; let nResp = 0;
+  farms.forEach(f => {
+    const v = f[campo];
+    if (v === null || v === undefined || v === '') return;
+    nResp++; cont[v] = (cont[v] || 0) + 1;
+  });
+  const opcoes = Object.entries(cont).map(([rotulo, n]) => ({ rotulo, n, pct: arredInterno(n * 100 / (nResp || 1)) }));
+  opcoes.sort((a, b) => b.n - a.n);
+  return { n: nResp, opcoes };
+}
+function estatMultiplaInterno(farms, campo) {
+  const cont = {}; let nResp = 0;
+  farms.forEach(f => {
+    const arr = f[campo] || [];
+    if (!arr.length) return;
+    nResp++; arr.forEach(rot => { cont[rot] = (cont[rot] || 0) + 1; });
+  });
+  const opcoes = Object.entries(cont).map(([rotulo, n]) => ({ rotulo, n, pct: arredInterno(n * 100 / (nResp || 1)) }));
+  opcoes.sort((a, b) => b.n - a.n);
+  return { n: nResp, opcoes };
+}
+function estatNumericaInterno(farms, campo) {
+  const nums = farms.map(f => f[campo]).filter(v => v !== null && v !== undefined && !isNaN(Number(v))).map(Number);
+  if (!nums.length) return { n: 0 };
+  nums.sort((a, b) => a - b);
+  return {
+    n: nums.length,
+    media: arredInterno(nums.reduce((s, v) => s + v, 0) / nums.length),
+    mediana: arredInterno(percentilInterno(nums, 50)),
+    p25: arredInterno(percentilInterno(nums, 25)),
+    p75: arredInterno(percentilInterno(nums, 75)),
+    hist: histogramaInterno(nums)
+  };
+}
+
+function farmsComFiltro(exceto) {
+  if (!FAZENDAS_RAW) return [];
+  return FAZENDAS_RAW.filter(f =>
+    (exceto === 'distrital' || !FILTRO_FAZENDA.distrital || f.distrital === FILTRO_FAZENDA.distrital) &&
+    (exceto === 'regional' || !FILTRO_FAZENDA.regional || f.regional === FILTRO_FAZENDA.regional) &&
+    (exceto === 'responsavel' || !FILTRO_FAZENDA.responsavel || f.responsavel === FILTRO_FAZENDA.responsavel) &&
+    (exceto === 'fazenda' || !FILTRO_FAZENDA.fazenda || f.fazenda === FILTRO_FAZENDA.fazenda)
+  );
+}
+function farmsFiltradas() { return farmsComFiltro(null); }
+function algumFiltroAtivo() {
+  return !!(FILTRO_FAZENDA.distrital || FILTRO_FAZENDA.regional || FILTRO_FAZENDA.responsavel || FILTRO_FAZENDA.fazenda);
+}
+function montarSelectsFiltro() {
+  if (!FAZENDAS_RAW) return;
+  [['distrital', 'ff-distrital', 'Distrital'], ['regional', 'ff-regional', 'Regional'],
+   ['responsavel', 'ff-responsavel', 'Responsável'], ['fazenda', 'ff-fazenda', 'Fazenda']].forEach(([campo, id, rotulo]) => {
+    const disponiveis = [...new Set(farmsComFiltro(campo).map(f => f[campo]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    if (FILTRO_FAZENDA[campo] && !disponiveis.includes(FILTRO_FAZENDA[campo])) FILTRO_FAZENDA[campo] = '';
+    const el = $(id);
+    el.innerHTML = `<option value="">${esc(rotulo)} (todos)</option>` + disponiveis.map(v => `<option value="${esc(v)}"${v === FILTRO_FAZENDA[campo] ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  });
+  $('ff-limpar').hidden = !algumFiltroAtivo();
+}
+['distrital', 'regional', 'responsavel', 'fazenda'].forEach(campo => {
+  $('ff-' + campo).addEventListener('change', e => {
+    FILTRO_FAZENDA[campo] = e.target.value;
+    montarSelectsFiltro();
+    atualizarSecaoPerguntas();
+  });
+});
+$('ff-limpar').addEventListener('click', () => {
+  FILTRO_FAZENDA.distrital = FILTRO_FAZENDA.regional = FILTRO_FAZENDA.responsavel = FILTRO_FAZENDA.fazenda = '';
+  montarSelectsFiltro();
+  atualizarSecaoPerguntas();
+});
+
+function atualizarSecaoPerguntas() {
+  const filtroLigado = algumFiltroAtivo() && FAZENDAS_RAW;
+  $('busca').disabled = !!filtroLigado;
+  if (filtroLigado) { termo = ''; $('busca').value = ''; renderFiltrado(); }
+  else render();
+}
+
+function renderFiltrado() {
+  const farms = farmsFiltradas();
+  $('ff-contagem').textContent = farms.length + (farms.length === 1 ? ' fazenda corresponde a este filtro.' : ' fazendas correspondem a este filtro.');
+  $('trilha').querySelectorAll('.fase').forEach(b => b.setAttribute('aria-selected', 'false'));
+  $('tituloCap').textContent = 'Perguntas fora da versão pública — filtrado';
+  $('contCap').textContent = farms.length + (farms.length === 1 ? ' fazenda' : ' fazendas') + ' neste filtro';
+  if (!DADOS || !farms.length) {
+    $('vazio').hidden = false;
+    $('vazio').innerHTML = '<b>Nenhuma fazenda corresponde a este filtro.</b>';
+    $('grade').innerHTML = '';
+    return;
+  }
+  $('vazio').hidden = true;
+  const base = DADOS.capitulos[0].perguntas;
+  const cartoes = CAMPOS_FILTRO_INTERNO.map(id => {
+    const baseQ = base.find(q => idPergunta(q) === id);
+    if (!baseQ) return '';
+    const dados = CAMPOS_NUMERICOS_INTERNO.has(id) ? estatNumericaInterno(farms, id)
+      : CAMPOS_MULTIPLA_INTERNO.has(id) ? estatMultiplaInterno(farms, id)
+      : estatCategoricaInterno(farms, id);
+    return cartao({ ...baseQ, ...dados, nExibicao: dados.n });
+  }).join('');
+  $('grade').innerHTML = cartoes;
+  ligarGrade();
+}
+
+fetch('fazendas.json')
+  .then(r => { if (!r.ok) throw new Error('sem arquivo'); return r.json(); })
+  .then(d => { FAZENDAS_RAW = d; montarSelectsFiltro(); })
+  .catch(() => { $('filtroFazenda').hidden = true; });
+
 function perguntasVisiveis() {
   if (termo) {
     const out = [];
@@ -850,6 +1035,10 @@ function render() {
   $('vazio').hidden = qs.length > 0;
   if (!qs.length) { $('vazio').innerHTML = '<b>Nada encontrado.</b><br>Tente outra palavra.'; $('grade').innerHTML = ''; return; }
   $('grade').innerHTML = qs.map(cartao).join('');
+  ligarGrade();
+}
+
+function ligarGrade() {
   $('grade').querySelectorAll('.mais').forEach(b => b.addEventListener('click', () => {
     const box = b.previousElementSibling;
     const expandido = b.getAttribute('aria-expanded') === 'true';
