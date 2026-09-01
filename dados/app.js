@@ -22,16 +22,12 @@
   const HORIZONTAL_BAR_IDS = new Set(["41"]);
   const HIDDEN_QUESTION_IDS = new Set(["179", "180"]);
   const VACCINE_QUESTION_ID = "44";
-  const LIVE_DATA_URL = 'https://script.google.com/macros/s/AKfycbw1zIn_bEKJnIRQhOoAmt5iOxoDVYw4NZtxAlDxIaN8Y5yvXAH1wwC8Cq9Vwj5FCqYvtg/exec?api=dados_publicos';
-  const LIVE_REFRESH_MS = 5 * 60 * 1000;
 
   let data = null;
   let chapters = [];
   let currentChapter = 0;
   let currentView = 'intro';
   let query = '';
-  let usingLiveData = false;
-  let uiBound = false;
 
   const el = id => document.getElementById(id);
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({
@@ -44,73 +40,23 @@
   const isNoChartNumeric = question => NO_CHART_NUMERIC_IDS.has(String(question.num));
   const metricValue = (question, value) => isNoChartNumeric(question) ? formatInteger(value) : formatNumber(value);
 
-  // Primeiro tenta os dados atuais da planilha. Se o Apps Script estiver
-  // temporariamente indisponível, mantém o último pacote estático como apoio.
-  refreshLiveData(true);
-  window.setInterval(() => refreshLiveData(false), LIVE_REFRESH_MS);
-
-  function loadLiveData() {
-    return new Promise((resolve, reject) => {
-      const callbackName = `altaCriaPublicData_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const script = document.createElement('script');
-      const timeout = window.setTimeout(() => finish(new Error('Tempo limite')), 15000);
-      let done = false;
-
-      function finish(error, result) {
-        if (done) return;
-        done = true;
-        window.clearTimeout(timeout);
-        delete window[callbackName];
-        script.remove();
-        if (error) reject(error); else resolve(result);
-      }
-
-      window[callbackName] = result => finish(null, result);
-      script.onerror = () => finish(new Error('Dados ao vivo indisponíveis'));
-      script.src = `${LIVE_DATA_URL}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
-      document.head.appendChild(script);
-    });
-  }
-
-  function loadStaticData() {
-    if (window.ALTA_CRIA_DATA) {
-      data = window.ALTA_CRIA_DATA;
-      usingLiveData = false;
-      start();
-      return Promise.resolve();
-    }
-    return fetch('dados.json')
+  if (window.ALTA_CRIA_DATA) {
+    data = window.ALTA_CRIA_DATA;
+    start();
+  } else {
+    fetch('dados.json')
       .then(response => {
         if (!response.ok) throw new Error('Arquivo de dados indisponível');
         return response.json();
       })
       .then(result => {
         data = result;
-        usingLiveData = false;
-        start();
-      });
-  }
-
-  function refreshLiveData(firstLoad) {
-    if (!LIVE_DATA_URL) {
-      if (firstLoad) loadStaticData().catch(showEmptyState);
-      return;
-    }
-    loadLiveData()
-      .then(result => {
-        if (!result || !Array.isArray(result.capitulos)) throw new Error('Formato de dados inválido');
-        data = result;
-        usingLiveData = true;
         start();
       })
       .catch(() => {
-        if (firstLoad && !data) loadStaticData().catch(showEmptyState);
+        el('vazio').hidden = false;
+        el('vazio').innerHTML = '<b>Os dados ainda não foram publicados.</b><br>Assim que as fazendas responderem, os resultados aparecem aqui.';
       });
-  }
-
-  function showEmptyState() {
-    el('vazio').hidden = false;
-    el('vazio').innerHTML = '<b>Os dados ainda não foram publicados.</b><br>Assim que as fazendas responderem, os resultados aparecem aqui.';
   }
 
   function start() {
@@ -133,10 +79,7 @@
       brand.insertAdjacentElement('afterend', altaLogo);
     }
 
-    el('demo').hidden = usingLiveData;
-    if (!usingLiveData) {
-      el('demo').textContent = 'Aviso: os dados ao vivo estão indisponíveis no momento. Exibindo o último pacote local disponível.';
-    }
+    el('demo').hidden = true;
 
     el('nFaz').textContent = formatInteger(data.n_fazendas);
     const generatedAt = new Date(data.gerado_em);
@@ -151,21 +94,18 @@
     }
 
     buildNavigation();
-    if (!uiBound) {
-      el('busca').addEventListener('input', event => {
-        query = event.target.value.trim().toLocaleLowerCase('pt-BR');
-        currentView = 'data';
-        render();
-      });
-      el('voltarInicio').addEventListener('click', () => {
-        currentView = 'intro';
-        query = '';
-        el('busca').value = '';
-        render();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-      uiBound = true;
-    }
+    el('busca').addEventListener('input', event => {
+      query = event.target.value.trim().toLocaleLowerCase('pt-BR');
+      currentView = 'data';
+      render();
+    });
+    el('voltarInicio').addEventListener('click', () => {
+      currentView = 'intro';
+      query = '';
+      el('busca').value = '';
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
     render();
   }
 
@@ -256,7 +196,6 @@
   }
 
   function renderIntroduction() {
-    const totalFazendas = formatInteger(data && data.n_fazendas);
     el('contCap').textContent = '';
     el('busca').closest('.busca').hidden = true;
     el('vazio').hidden = true;
@@ -270,7 +209,10 @@
       <div class="welcome-kicker">Caderno de Dados Anuais 2025/2026</div>
       <h2>Bem-vindo ao universo de dados do Programa Alta CRIA</h2>
       <p class="welcome-deck">Informação técnica, visão nacional e indicadores para apoiar decisões mais eficientes na criação de bezerras e novilhas leiteiras.</p>
-      <button class="access-data" id="accessData" type="button">Acessar os dados <span aria-hidden="true">→</span></button>
+      <div class="welcome-actions">
+        <button class="access-data" id="accessData" type="button">Acessar os dados do questionário <span aria-hidden="true">→</span></button>
+        <button class="access-data access-data-secondary" id="accessAnimals" type="button" disabled aria-disabled="true">Acessar os dados dos animais <span class="access-data-tag" aria-hidden="true">Em breve</span></button>
+      </div>
     </section>
 
     <section class="welcome-message" aria-labelledby="welcome-title">
@@ -280,7 +222,7 @@
         <p>O gerenciamento de indicadores e a compreensão dos principais índices zootécnicos são fundamentais para definir metas, planejar estratégias e alcançar os objetivos da propriedade. Esse acompanhamento é essencial para facilitar a tomada de decisão, tornar os sistemas mais eficientes e lucrativos e identificar pontos que necessitam maior atenção.</p>
         <p>Com esse propósito, em 2017 foi criado o Programa Alta CRIA, que tem como objetivo coletar, organizar e analisar os principais índices zootécnicos e sanitários das fases de cria e recria. O programa gera informações e dados em âmbito nacional para auxiliar produtores e técnicos na gestão dos sistemas de criação.</p>
         <p>A interpretação dos resultados conta com um grupo de conselheiros especializados, que analisam tendências e inovações no setor. As devolutivas são disponibilizadas por meio de materiais técnicos como o Padrão Ouro de Criação de Bezerras e Novilhas Leiteiras, o Caderno de Dados Anuais e o Livro Perguntas e Respostas Alta CRIA. Além disso, o programa reúne uma ampla rede de técnicos e proprietários de fazendas comerciais em diversas regiões do Brasil.</p>
-        <p>O Caderno de Dados Anuais Alta CRIA 2025/2026 é atualizado com base nos questionários respondidos pelas fazendas participantes do programa. Neste momento, há ${totalFazendas} fazendas com respostas válidas consideradas na análise. Os cálculos e resultados apresentados são descritivos e se referem a bezerras nascidas entre 1º de julho de 2025 e 30 de junho de 2026.</p>
+        <p>O Caderno de Dados Anuais Alta CRIA 2025/2026 foi desenvolvido a partir de questionários online respondidos por 187 fazendas e dos dados enviados por 184 fazendas participantes do programa. Os cálculos e resultados apresentados foram gerados com base nessas informações, analisadas de forma descritiva, e se referem a bezerras nascidas entre 1º de julho de 2025 e 30 de junho de 2026.</p>
         <span class="message-marker-close" aria-hidden="true">”</span>
       </div>
       <div class="message-signature">
@@ -295,10 +237,10 @@
     </section>
 
     <section class="thanks-panel">
-      <div class="thanks-number"><strong>${totalFazendas}</strong><span>fazendas com respostas válidas</span></div>
+      <div class="thanks-number"><strong>184</strong><span>fazendas enviaram seus dados</span></div>
       <div class="thanks-copy">
         <h3>Nosso agradecimento</h3>
-        <p>Agradecemos às fazendas que participam do ciclo Alta CRIA 2025/2026 e contribuem para a construção de informações úteis para a criação de bezerras e novilhas leiteiras.</p>
+        <p>Agradecemos às 184 fazendas que enviaram seus dados e às 187 fazendas que preencheram o questionário online no ciclo Alta CRIA 2025/2026.</p>
         <p>Este programa só é possível graças à confiança depositada em nossa equipe, que nos permite realizar análises consistentes e trabalhar pela padronização dos índices de cria e recria na pecuária leiteira brasileira.</p>
       </div>
     </section>
