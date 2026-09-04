@@ -196,7 +196,9 @@
         <label>Distrital<select id="ff-distrital"></select></label>
         <label>Regional<select id="ff-regional"></select></label>
         <label>Responsável<select id="ff-responsavel"></select></label>
+        <label>Nome de faturamento 1<select id="ff-faturamento1"></select></label>
         <label>Fazenda<select id="ff-fazenda"></select></label>
+        <label title="Média de q191, q192 e q194; q194 entra apenas quando respondida.">Nota média do programa<select id="ff-nota_media"></select></label>
         <button type="button" id="ff-limpar" class="ff-limpar" hidden>Limpar filtro</button>
       </div>
       <p class="ff-aviso">Ao escolher um filtro, os números das perguntas abaixo são <strong>recalculados só para as fazendas que combinam com ele</strong> — deixam de ser o total do programa. <span id="ff-contagem"></span></p>
@@ -283,7 +285,7 @@ let DADOS_AO_VIVO = false;
 const FILTROS_MOCHACAO = { q070: '', q071: '' };
 const FILTROS_CUSTO = { q182: '', q184: '' };
 let FAZENDAS_RAW = null;
-const FILTRO_FAZENDA = { distrital: '', regional: '', responsavel: '', fazenda: '' };
+const FILTRO_FAZENDA = { distrital: '', regional: '', responsavel: '', faturamento1: '', fazenda: '', nota_media: '' };
 const CAMPOS_FILTRO_INTERNO = ['q008', 'q179', 'q180', 'q191', 'q192', 'q193', 'q194'];
 const CAMPOS_MULTIPLA_INTERNO = new Set(['q179', 'q180']);
 const CAMPOS_NUMERICOS_INTERNO = new Set(['q191', 'q192', 'q194']);
@@ -858,9 +860,9 @@ document.querySelectorAll('.aba-interno').forEach(b => b.addEventListener('click
 }));
 
 /* ===================================================================
-   FILTRO EM CASCATA POR FAZENDA / RESPONSÁVEL / DISTRITAL / REGIONAL
-   Cruza codigoAcesso (Respostas_26) com Fazenda/Responsável/Distrital/
-   Regional (aba Base, colunas D/F/X/Y) — extraído uma única vez para o
+   FILTRO EM CASCATA POR FAZENDA / NOME DE FATURAMENTO 1 / RESPONSÁVEL / DISTRITAL / REGIONAL / NOTA
+   Cruza codigoAcesso (Respostas_26) com Fazenda/Responsável/Nome de faturamento 1/
+   Distrital/Regional (aba Base, colunas D/F/A/X/Y) — extraído uma única vez para o
    arquivo fazendas.json, não é uma consulta ao vivo. Ao escolher um
    filtro, as 7 perguntas da lista acima são recalculadas no navegador com
    os mesmos cálculos do backend (percentil_/histograma_ do Apps Script,
@@ -935,31 +937,70 @@ function estatNumericaInterno(farms, campo) {
   };
 }
 
+const FAIXAS_NOTA_MEDIA = [
+  { valor: 'ate5_9', rotulo: 'Até 5,9' },
+  { valor: '6', rotulo: '6,0 a 6,9' },
+  { valor: '7', rotulo: '7,0 a 7,9' },
+  { valor: '8', rotulo: '8,0 a 8,9' },
+  { valor: '9', rotulo: '9,0 a 9,9' },
+  { valor: '10', rotulo: '10,0' }
+];
+function notaMediaProgramaFarm(f) {
+  const brutoPronto = f?.nota_media_programa;
+  const pronta = brutoPronto === null || brutoPronto === undefined || brutoPronto === '' ? NaN : Number(brutoPronto);
+  if (Number.isFinite(pronta)) return pronta;
+  const notas = ['q191', 'q192', 'q194']
+    .map(k => f?.[k])
+    .filter(v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)))
+    .map(Number);
+  return notas.length ? notas.reduce((s, v) => s + v, 0) / notas.length : null;
+}
+function faixaNotaMediaFarm(f) {
+  const n = notaMediaProgramaFarm(f);
+  if (!Number.isFinite(n)) return '';
+  if (n < 6) return 'ate5_9';
+  if (n < 7) return '6';
+  if (n < 8) return '7';
+  if (n < 9) return '8';
+  if (n < 10) return '9';
+  return '10';
+}
+
 function farmsComFiltro(exceto) {
   if (!FAZENDAS_RAW) return [];
   return FAZENDAS_RAW.filter(f =>
     (exceto === 'distrital' || !FILTRO_FAZENDA.distrital || f.distrital === FILTRO_FAZENDA.distrital) &&
     (exceto === 'regional' || !FILTRO_FAZENDA.regional || f.regional === FILTRO_FAZENDA.regional) &&
     (exceto === 'responsavel' || !FILTRO_FAZENDA.responsavel || f.responsavel === FILTRO_FAZENDA.responsavel) &&
-    (exceto === 'fazenda' || !FILTRO_FAZENDA.fazenda || f.fazenda === FILTRO_FAZENDA.fazenda)
+    (exceto === 'faturamento1' || !FILTRO_FAZENDA.faturamento1 || f.faturamento1 === FILTRO_FAZENDA.faturamento1) &&
+    (exceto === 'fazenda' || !FILTRO_FAZENDA.fazenda || f.fazenda === FILTRO_FAZENDA.fazenda) &&
+    (exceto === 'nota_media' || !FILTRO_FAZENDA.nota_media || faixaNotaMediaFarm(f) === FILTRO_FAZENDA.nota_media)
   );
 }
 function farmsFiltradas() { return farmsComFiltro(null); }
 function algumFiltroAtivo() {
-  return !!(FILTRO_FAZENDA.distrital || FILTRO_FAZENDA.regional || FILTRO_FAZENDA.responsavel || FILTRO_FAZENDA.fazenda);
+  return !!(FILTRO_FAZENDA.distrital || FILTRO_FAZENDA.regional || FILTRO_FAZENDA.responsavel || FILTRO_FAZENDA.faturamento1 || FILTRO_FAZENDA.fazenda || FILTRO_FAZENDA.nota_media);
 }
 function montarSelectsFiltro() {
   if (!FAZENDAS_RAW) return;
   [['distrital', 'ff-distrital', 'Distrital'], ['regional', 'ff-regional', 'Regional'],
-   ['responsavel', 'ff-responsavel', 'Responsável'], ['fazenda', 'ff-fazenda', 'Fazenda']].forEach(([campo, id, rotulo]) => {
+   ['responsavel', 'ff-responsavel', 'Responsável'], ['faturamento1', 'ff-faturamento1', 'Nome de faturamento 1'],
+   ['fazenda', 'ff-fazenda', 'Fazenda']].forEach(([campo, id, rotulo]) => {
     const disponiveis = [...new Set(farmsComFiltro(campo).map(f => f[campo]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     if (FILTRO_FAZENDA[campo] && !disponiveis.includes(FILTRO_FAZENDA[campo])) FILTRO_FAZENDA[campo] = '';
     const el = $(id);
     el.innerHTML = `<option value="">${esc(rotulo)} (todos)</option>` + disponiveis.map(v => `<option value="${esc(v)}"${v === FILTRO_FAZENDA[campo] ? ' selected' : ''}>${esc(v)}</option>`).join('');
   });
+
+  const notasDisponiveis = new Set(farmsComFiltro('nota_media').map(faixaNotaMediaFarm).filter(Boolean));
+  if (FILTRO_FAZENDA.nota_media && !notasDisponiveis.has(FILTRO_FAZENDA.nota_media)) FILTRO_FAZENDA.nota_media = '';
+  $('ff-nota_media').innerHTML = '<option value="">Nota média (todas)</option>' +
+    FAIXAS_NOTA_MEDIA.filter(x => notasDisponiveis.has(x.valor))
+      .map(x => `<option value="${x.valor}"${x.valor === FILTRO_FAZENDA.nota_media ? ' selected' : ''}>${x.rotulo}</option>`).join('');
+
   $('ff-limpar').hidden = !algumFiltroAtivo();
 }
-['distrital', 'regional', 'responsavel', 'fazenda'].forEach(campo => {
+['distrital', 'regional', 'responsavel', 'faturamento1', 'fazenda', 'nota_media'].forEach(campo => {
   $('ff-' + campo).addEventListener('change', e => {
     FILTRO_FAZENDA[campo] = e.target.value;
     montarSelectsFiltro();
@@ -967,7 +1008,7 @@ function montarSelectsFiltro() {
   });
 });
 $('ff-limpar').addEventListener('click', () => {
-  FILTRO_FAZENDA.distrital = FILTRO_FAZENDA.regional = FILTRO_FAZENDA.responsavel = FILTRO_FAZENDA.fazenda = '';
+  Object.keys(FILTRO_FAZENDA).forEach(campo => { FILTRO_FAZENDA[campo] = ''; });
   montarSelectsFiltro();
   atualizarSecaoPerguntas();
 });
